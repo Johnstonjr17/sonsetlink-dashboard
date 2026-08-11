@@ -42,5 +42,8 @@ next-env.d.ts
 
 # database
 *.db
-sonsetlink.db
+*.db-shm
+*.db-wal
+sonsetlink.db*
+
 
