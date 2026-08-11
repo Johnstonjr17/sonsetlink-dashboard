@@ -41,6 +41,9 @@ export default function Navbar() {
           <Link href="/quarterly" className={`nav-link ${pathname === '/quarterly' ? 'active' : ''}`}>
             Quarterly Flow
           </Link>
+          <Link href="/groups" className={`nav-link ${pathname === '/groups' ? 'active' : ''}`}>
+            Flow Accounting
+          </Link>
         </nav>
 
         <div className="navbar-actions">

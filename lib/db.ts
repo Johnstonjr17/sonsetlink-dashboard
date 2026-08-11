@@ -61,5 +61,49 @@ export async function initSchema(): Promise<void> {
     CREATE INDEX IF NOT EXISTS idx_messages_site_id ON messages(site_id);
     CREATE INDEX IF NOT EXISTS idx_messages_timestamp ON messages(timestamp);
     CREATE INDEX IF NOT EXISTS idx_messages_site_ts ON messages(site_id, timestamp);
+
+    CREATE TABLE IF NOT EXISTS groups (
+      id TEXT PRIMARY KEY,
+      name TEXT NOT NULL,
+      description TEXT,
+      created_at TEXT NOT NULL
+    );
+
+    CREATE TABLE IF NOT EXISTS group_sites (
+      group_id TEXT NOT NULL,
+      site_id TEXT NOT NULL,
+      role TEXT NOT NULL,
+      PRIMARY KEY (group_id, site_id)
+    );
   `);
+
+  try {
+    const existing = await db.execute(`SELECT COUNT(*) as cnt FROM groups`);
+    if (Number(existing.rows[0]?.cnt ?? 0) === 0) {
+      const groupId = 'rosalbali-system';
+      await db.execute({
+        sql: `INSERT OR IGNORE INTO groups (id, name, description, created_at) VALUES (?, ?, ?, ?)`,
+        args: [
+          groupId,
+          'Rosalbali Network',
+          'Production (SL-025 Rosalbali) vs Distribution (SL-014 Allianza & SL-018 Rosarito)',
+          new Date().toISOString(),
+        ],
+      });
+      await db.execute({
+        sql: `INSERT OR IGNORE INTO group_sites (group_id, site_id, role) VALUES (?, ?, ?)`,
+        args: [groupId, 'SL-025', 'production'],
+      });
+      await db.execute({
+        sql: `INSERT OR IGNORE INTO group_sites (group_id, site_id, role) VALUES (?, ?, ?)`,
+        args: [groupId, 'SL-014', 'distribution'],
+      });
+      await db.execute({
+        sql: `INSERT OR IGNORE INTO group_sites (group_id, site_id, role) VALUES (?, ?, ?)`,
+        args: [groupId, 'SL-018', 'distribution'],
+      });
+    }
+  } catch {
+    // Ignore seed errors if table exists
+  }
 }
