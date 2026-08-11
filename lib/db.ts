@@ -5,14 +5,24 @@ let _client: Client | null = null;
 
 export function getDb(): Client {
   if (!_client) {
-    const dbPath = path.join(process.cwd(), 'sonsetlink.db').replace(/\\/g, '/');
-    const url = process.env.TURSO_DATABASE_URL || `file:${dbPath}`;
-    const authToken = process.env.TURSO_AUTH_TOKEN;
+    const tursoUrl = process.env.TURSO_DATABASE_URL;
+    const tursoToken = process.env.TURSO_AUTH_TOKEN;
 
-    _client = createClient({
-      url,
-      authToken,
-    });
+    if (tursoUrl) {
+      _client = createClient({
+        url: tursoUrl,
+        authToken: tursoToken,
+      });
+    } else if (process.env.VERCEL) {
+      throw new Error(
+        'TURSO_DATABASE_URL is missing in Vercel Environment Variables. Please add TURSO_DATABASE_URL and TURSO_AUTH_TOKEN in Vercel Settings -> Environment Variables and redeploy.'
+      );
+    } else {
+      const dbPath = path.join(process.cwd(), 'sonsetlink.db').replace(/\\/g, '/');
+      _client = createClient({
+        url: `file:${dbPath}`,
+      });
+    }
   }
   return _client;
 }
