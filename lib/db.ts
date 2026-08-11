@@ -7,13 +7,16 @@ const globalForDb = globalThis as unknown as {
 
 export function getDb(): Client {
   if (!globalForDb.tursoClient) {
-    const tursoUrl = process.env.TURSO_DATABASE_URL;
-    const tursoToken = process.env.TURSO_AUTH_TOKEN;
+    const rawUrl = process.env.TURSO_DATABASE_URL?.trim();
+    const rawToken = process.env.TURSO_AUTH_TOKEN?.trim();
 
-    if (tursoUrl) {
+    if (rawUrl) {
+      const cleanUrl = rawUrl.replace(/^["']|["']$/g, '');
+      const cleanToken = rawToken ? rawToken.replace(/^["']|["']$/g, '') : undefined;
+
       globalForDb.tursoClient = createClient({
-        url: tursoUrl,
-        authToken: tursoToken,
+        url: cleanUrl,
+        authToken: cleanToken,
       });
     } else if (process.env.VERCEL) {
       throw new Error(

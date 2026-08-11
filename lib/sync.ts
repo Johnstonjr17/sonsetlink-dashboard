@@ -49,58 +49,65 @@ export async function syncAll(): Promise<SyncResult> {
     sitesUpdated = sites.length;
   }
 
-  for (const site of activeSites) {
-    try {
-      const lastSyncRes = await db.execute({
-        sql: `SELECT last_synced_at FROM sites WHERE id = ?`,
-        args: [site.id],
-      });
-      const lastSyncRow = lastSyncRes.rows[0];
-      const sinceDate = (lastSyncRow?.last_synced_at as string) ?? START_DATE;
+  // Concurrent fetch per site (batch size 4)
+  const batchSize = 4;
+  for (let i = 0; i < activeSites.length; i += batchSize) {
+    const batch = activeSites.slice(i, i + batchSize);
+    await Promise.all(
+      batch.map(async (site) => {
+        try {
+          const lastSyncRes = await db.execute({
+            sql: `SELECT last_synced_at FROM sites WHERE id = ?`,
+            args: [site.id],
+          });
+          const lastSyncRow = lastSyncRes.rows[0];
+          const sinceDate = (lastSyncRow?.last_synced_at as string) ?? START_DATE;
 
-      const messages = await fetchSiteMessages(site.id, sinceDate);
+          const messages = await fetchSiteMessages(site.id, sinceDate);
 
-      if (messages.length > 0) {
-        const msgStatements = messages.map((msg) => {
-          const a = msg.attributes;
-          return {
-            sql: `
-              INSERT OR IGNORE INTO messages
-                (id, site_id, timestamp, flow_volume, flow2_volume, dosing_pump, time_in_use, battery_voltage, slot, backfill)
-              VALUES
-                (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-            `,
-            args: [
-              msg.id,
-              site.id,
-              a.timestamp ?? null,
-              a.flow_volume ?? 0,
-              a.flow2_volume ?? 0,
-              a.dosing_pump ?? null,
-              a.time_in_use ?? 0,
-              a.battery_voltage ?? null,
-              a.slot ?? null,
-              a.backfill ?? null,
-            ],
-          };
-        });
+          if (messages.length > 0) {
+            const msgStatements = messages.map((msg) => {
+              const a = msg.attributes;
+              return {
+                sql: `
+                  INSERT OR IGNORE INTO messages
+                    (id, site_id, timestamp, flow_volume, flow2_volume, dosing_pump, time_in_use, battery_voltage, slot, backfill)
+                  VALUES
+                    (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                `,
+                args: [
+                  msg.id,
+                  site.id,
+                  a.timestamp ?? null,
+                  a.flow_volume ?? 0,
+                  a.flow2_volume ?? 0,
+                  a.dosing_pump ?? null,
+                  a.time_in_use ?? 0,
+                  a.battery_voltage ?? null,
+                  a.slot ?? null,
+                  a.backfill ?? null,
+                ],
+              };
+            });
 
-        const chunkSize = 500;
-        for (let i = 0; i < msgStatements.length; i += chunkSize) {
-          const chunk = msgStatements.slice(i, i + chunkSize);
-          await db.batch(chunk, 'write');
+            const chunkSize = 250;
+            for (let j = 0; j < msgStatements.length; j += chunkSize) {
+              const chunk = msgStatements.slice(j, j + chunkSize);
+              await db.batch(chunk, 'write');
+            }
+
+            await db.execute({
+              sql: `UPDATE sites SET last_synced_at = ? WHERE id = ?`,
+              args: [new Date().toISOString(), site.id],
+            });
+
+            recordsAdded += messages.length;
+          }
+        } catch (err) {
+          errors.push(`${site.id}: ${String(err)}`);
         }
-
-        await db.execute({
-          sql: `UPDATE sites SET last_synced_at = ? WHERE id = ?`,
-          args: [new Date().toISOString(), site.id],
-        });
-
-        recordsAdded += messages.length;
-      }
-    } catch (err) {
-      errors.push(`${site.id}: ${String(err)}`);
-    }
+      })
+    );
   }
 
   return {
