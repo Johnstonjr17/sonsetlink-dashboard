@@ -22,24 +22,36 @@ export default function HomePage() {
 
   useEffect(() => {
     fetch('/api/sites')
-      .then((r) => r.json())
-      .then((d) => {
-        if (d.error) { setError(d.error); } else { setSites(d.sites ?? []); }
+      .then(async (r) => {
+        const data = await r.json();
+        if (!r.ok || data.error) {
+          throw new Error(data.error || `HTTP error ${r.status}`);
+        }
+        return data;
       })
-      .catch((e) => setError(String(e)))
+      .then((d) => {
+        setSites(Array.isArray(d.sites) ? d.sites : []);
+        setError(null);
+      })
+      .catch((e) => {
+        setError(String(e.message || e));
+        setSites([]);
+      })
       .finally(() => setLoading(false));
   }, []);
 
-  const filtered = sites.filter((s) => {
+  const safeSites = Array.isArray(sites) ? sites : [];
+  const filtered = safeSites.filter((s) => {
+    if (!s) return false;
     const q = search.toLowerCase();
     return (
-      s.name?.toLowerCase().includes(q) ||
-      s.id?.toLowerCase().includes(q) ||
-      s.location?.toLowerCase().includes(q)
+      (s.name && s.name.toLowerCase().includes(q)) ||
+      (s.id && s.id.toLowerCase().includes(q)) ||
+      (s.location && s.location.toLowerCase().includes(q))
     );
   });
 
-  const lastSync = sites.find((s) => s.last_synced_at)?.last_synced_at;
+  const lastSync = safeSites.find((s) => s?.last_synced_at)?.last_synced_at;
 
   return (
     <>
@@ -47,7 +59,7 @@ export default function HomePage() {
         <h1 className="page-title">Water Flow Dashboard</h1>
         <p className="page-subtitle">
           {lastSync
-            ? `Last synced ${new Date(lastSync).toLocaleString('en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })} · ${sites.length} monitored sites`
+            ? `Last synced ${new Date(lastSync).toLocaleString('en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })} · ${safeSites.length} monitored sites`
             : 'Click "Sync Now" in the top right to load data from SonSetLink API'}
         </p>
       </div>
@@ -59,7 +71,7 @@ export default function HomePage() {
         </div>
       )}
 
-      {!loading && !error && sites.length === 0 && (
+      {!loading && !error && safeSites.length === 0 && (
         <div className="sync-bar" style={{ marginBottom: 20 }}>
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
           No sites yet. Click <strong>"Sync Now"</strong> in the top bar to load your sites.

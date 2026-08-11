@@ -1,15 +1,17 @@
 import { createClient, Client } from '@libsql/client';
 import path from 'path';
 
-let _client: Client | null = null;
+const globalForDb = globalThis as unknown as {
+  tursoClient: Client | undefined;
+};
 
 export function getDb(): Client {
-  if (!_client) {
+  if (!globalForDb.tursoClient) {
     const tursoUrl = process.env.TURSO_DATABASE_URL;
     const tursoToken = process.env.TURSO_AUTH_TOKEN;
 
     if (tursoUrl) {
-      _client = createClient({
+      globalForDb.tursoClient = createClient({
         url: tursoUrl,
         authToken: tursoToken,
       });
@@ -19,12 +21,12 @@ export function getDb(): Client {
       );
     } else {
       const dbPath = path.join(process.cwd(), 'sonsetlink.db').replace(/\\/g, '/');
-      _client = createClient({
+      globalForDb.tursoClient = createClient({
         url: `file:${dbPath}`,
       });
     }
   }
-  return _client;
+  return globalForDb.tursoClient;
 }
 
 export async function initSchema(): Promise<void> {
