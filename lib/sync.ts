@@ -56,12 +56,23 @@ export async function syncAll(): Promise<SyncResult> {
     await Promise.all(
       batch.map(async (site) => {
         try {
-          const lastSyncRes = await db.execute({
-            sql: `SELECT last_synced_at FROM sites WHERE id = ?`,
+          // Check MAX timestamp of existing messages for this site in DB
+          const maxMsgRes = await db.execute({
+            sql: `SELECT MAX(timestamp) as max_ts FROM messages WHERE site_id = ?`,
             args: [site.id],
           });
-          const lastSyncRow = lastSyncRes.rows[0];
-          const sinceDate = (lastSyncRow?.last_synced_at as string) ?? START_DATE;
+          const maxTs = maxMsgRes.rows[0]?.max_ts as string | undefined;
+
+          // Roll back 2 days from max existing timestamp to catch backfilled/delayed satellite transmissions
+          let sinceDate = START_DATE;
+          if (maxTs && maxTs.length >= 10) {
+            const d = new Date(maxTs.slice(0, 10) + 'T00:00:00');
+            d.setDate(d.getDate() - 2);
+            const yyyy = d.getFullYear();
+            const mm = String(d.getMonth() + 1).padStart(2, '0');
+            const dd = String(d.getDate()).padStart(2, '0');
+            sinceDate = `${yyyy}-${mm}-${dd} 00:00:00`;
+          }
 
           const messages = await fetchSiteMessages(site.id, sinceDate);
 
