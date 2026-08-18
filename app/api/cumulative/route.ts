@@ -20,6 +20,8 @@ export async function GET(req: NextRequest) {
           s.name,
           s.location,
           s.format_name,
+          s.install_date,
+          s.ship_date,
           SUM(COALESCE(m.flow_volume, 0)) AS flow1_gal,
           SUM(COALESCE(m.flow2_volume, 0)) AS flow2_gal,
           SUM(COALESCE(m.flow_volume, 0) + COALESCE(m.flow2_volume, 0)) AS total_gal,
@@ -30,8 +32,9 @@ export async function GET(req: NextRequest) {
         LEFT JOIN messages m ON m.site_id = s.id
           AND substr(m.timestamp, 1, 10) >= ?
           AND substr(m.timestamp, 1, 10) <= ?
+          AND (s.install_date IS NULL OR substr(m.timestamp, 1, 10) >= s.install_date)
         WHERE s.most_recent_tx >= '2025-01-01'
-        GROUP BY s.id, s.name, s.location, s.format_name
+        GROUP BY s.id, s.name, s.location, s.format_name, s.install_date, s.ship_date
         ORDER BY s.name ASC
       `,
       args: [startDate, endDate],
@@ -51,6 +54,8 @@ export async function GET(req: NextRequest) {
         name: String(r.name || r.site_id || 'Unnamed Site'),
         location: String(r.location || 'N/A'),
         format_name: String(r.format_name || 'N/A'),
+        install_date: r.install_date ? String(r.install_date) : 'N/A',
+        ship_date: r.ship_date ? String(r.ship_date) : 'N/A',
         flow1_gal: flow1Gal,
         flow1_liters: flow1Liters,
         flow2_gal: flow2Gal,

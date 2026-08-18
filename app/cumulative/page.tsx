@@ -6,6 +6,8 @@ interface CumulativeSiteRecord {
   name: string;
   location: string;
   format_name: string;
+  install_date: string;
+  ship_date: string;
   flow1_gal: number;
   flow1_liters: number;
   flow2_gal: number;
@@ -87,6 +89,7 @@ export default function CumulativePage() {
       'Project Name',
       'Location',
       'Hardware Format',
+      'Install Date',
       'Filter Start Date',
       'Filter End Date',
       'First Telemetry Date in Window',
@@ -107,6 +110,7 @@ export default function CumulativePage() {
         s.name,
         s.location,
         s.format_name,
+        s.install_date,
         data.startDate,
         data.endDate,
         s.first_tx,
@@ -123,6 +127,7 @@ export default function CumulativePage() {
       'TOTAL ALL SITES',
       'All Monitored Projects',
       'All Locations',
+      'N/A',
       'N/A',
       data.startDate,
       data.endDate,
@@ -169,7 +174,7 @@ export default function CumulativePage() {
       <div className="page-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: 16 }}>
         <div>
           <h1 className="page-title">Master Cumulative Volume</h1>
-          <p className="page-subtitle">Export and filter total water volume by Flow 1, Flow 2, and Combined Totals for any custom date range</p>
+          <p className="page-subtitle">Export and filter total water volume by Flow 1, Flow 2, and Combined Totals (excluding manufacturing pre-install test data)</p>
         </div>
         <button
           className="btn btn-primary"
@@ -337,6 +342,7 @@ export default function CumulativePage() {
                   <th>Site ID</th>
                   <th>Project Name</th>
                   <th>Location</th>
+                  <th>Install Date</th>
                   <th>First TX in Window</th>
                   <th>Last TX in Window</th>
                   <th style={{ textAlign: 'right' }}>Flow 1 ({unit === 'gal' ? 'Gal' : 'L'})</th>
@@ -359,6 +365,13 @@ export default function CumulativePage() {
                       <td><span className="badge badge-teal">{s.site_id}</span></td>
                       <td style={{ fontWeight: 600 }}>{s.name}</td>
                       <td>{s.location}</td>
+                      <td>
+                        {s.install_date !== 'N/A' ? (
+                          <span className="badge badge-teal" style={{ fontSize: '0.78rem' }}>{s.install_date}</span>
+                        ) : (
+                          <span style={{ fontSize: '0.78rem', color: 'var(--text-secondary)' }}>N/A</span>
+                        )}
+                      </td>
                       <td style={{ fontSize: '0.78rem', color: 'var(--text-secondary)' }}>{s.first_tx}</td>
                       <td style={{ fontSize: '0.78rem', color: 'var(--text-secondary)' }}>{s.last_tx}</td>
                       <td style={{ textAlign: 'right', fontWeight: 600, color: '#6366f1' }}>
@@ -379,7 +392,7 @@ export default function CumulativePage() {
 
                 {/* Summary Row */}
                 <tr style={{ background: 'var(--teal-50)', fontWeight: 700 }}>
-                  <td colSpan={3} style={{ color: 'var(--teal-800)', fontSize: '0.88rem' }}>
+                  <td colSpan={4} style={{ color: 'var(--teal-800)', fontSize: '0.88rem' }}>
                     TOTAL — All {filteredSites.length} Projects
                   </td>
                   <td colSpan={2} style={{ fontSize: '0.78rem', color: 'var(--teal-700)' }}>

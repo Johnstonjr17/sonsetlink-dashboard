@@ -34,6 +34,11 @@ export interface MessageRecord {
   attributes: MessageAttributes;
 }
 
+export interface UnitDetails {
+  install_date: string | null;
+  ship_date: string | null;
+}
+
 export async function fetchAllSites(): Promise<SiteRecord[]> {
   const res = await fetch(`${BASE_URL}/sites`, { headers: defaultHeaders });
   if (!res.ok) throw new Error(`Failed to fetch sites: ${res.status}`);
@@ -41,9 +46,24 @@ export async function fetchAllSites(): Promise<SiteRecord[]> {
   return json.data ?? [];
 }
 
+export async function fetchSiteUnitDetails(siteId: string): Promise<UnitDetails> {
+  try {
+    const res = await fetch(`${BASE_URL}/sites/${siteId}/unit`, { headers: defaultHeaders });
+    if (!res.ok) return { install_date: null, ship_date: null };
+    const json = await res.json();
+    const attrs = json.data?.attributes ?? {};
+    return {
+      install_date: attrs.install_date ?? null,
+      ship_date: attrs.ship_date ?? null,
+    };
+  } catch {
+    return { install_date: null, ship_date: null };
+  }
+}
+
 export async function fetchSiteMessages(
   siteId: string,
-  sinceDate: string = '2026-01-01 00:00:00'
+  sinceDate: string = '2025-01-01 00:00:00'
 ): Promise<MessageRecord[]> {
   const allRecords: MessageRecord[] = [];
   let page = 1;

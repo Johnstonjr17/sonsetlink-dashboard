@@ -1,5 +1,5 @@
 import { getDb, initSchema } from './db';
-import { fetchAllSites, fetchSiteMessages } from './api';
+import { fetchAllSites, fetchSiteUnitDetails, fetchSiteMessages } from './api';
 
 const START_DATE = '2025-01-01 00:00:00';
 
@@ -25,24 +25,40 @@ export async function syncAll(): Promise<SyncResult> {
     return tx >= '2025-01-01';
   });
 
-  const siteStatements = sites.map((s) => ({
-    sql: `
-      INSERT INTO sites (id, name, location, format_name, most_recent_tx)
-      VALUES (?, ?, ?, ?, ?)
-      ON CONFLICT(id) DO UPDATE SET
-        name = excluded.name,
-        location = excluded.location,
-        format_name = excluded.format_name,
-        most_recent_tx = excluded.most_recent_tx
-    `,
-    args: [
-      s.id,
-      s.attributes.name ?? null,
-      s.attributes.location ?? null,
-      s.attributes.format_name ?? null,
-      s.attributes.most_recent_tx ?? null,
-    ],
-  }));
+  // Fetch unit details (install_date & ship_date) for active sites in parallel
+  const unitDetailMap = new Map<string, { install_date: string | null; ship_date: string | null }>();
+  await Promise.all(
+    activeSites.map(async (site) => {
+      const details = await fetchSiteUnitDetails(site.id);
+      unitDetailMap.set(site.id, details);
+    })
+  );
+
+  const siteStatements = sites.map((s) => {
+    const unit = unitDetailMap.get(s.id);
+    return {
+      sql: `
+        INSERT INTO sites (id, name, location, format_name, most_recent_tx, install_date, ship_date)
+        VALUES (?, ?, ?, ?, ?, ?, ?)
+        ON CONFLICT(id) DO UPDATE SET
+          name = excluded.name,
+          location = excluded.location,
+          format_name = excluded.format_name,
+          most_recent_tx = excluded.most_recent_tx,
+          install_date = COALESCE(excluded.install_date, sites.install_date),
+          ship_date = COALESCE(excluded.ship_date, sites.ship_date)
+      `,
+      args: [
+        s.id,
+        s.attributes.name ?? null,
+        s.attributes.location ?? null,
+        s.attributes.format_name ?? null,
+        s.attributes.most_recent_tx ?? null,
+        unit?.install_date ?? null,
+        unit?.ship_date ?? null,
+      ],
+    };
+  });
 
   if (siteStatements.length > 0) {
     await db.batch(siteStatements, 'write');
@@ -56,6 +72,9 @@ export async function syncAll(): Promise<SyncResult> {
     await Promise.all(
       batch.map(async (site) => {
         try {
+          const unit = unitDetailMap.get(site.id);
+          const installDate = unit?.install_date;
+
           const rangeRes = await db.execute({
             sql: `SELECT MIN(timestamp) as min_ts, MAX(timestamp) as max_ts FROM messages WHERE site_id = ?`,
             args: [site.id],
@@ -63,8 +82,9 @@ export async function syncAll(): Promise<SyncResult> {
           const minTs = rangeRes.rows[0]?.min_ts as string | undefined;
           const maxTs = rangeRes.rows[0]?.max_ts as string | undefined;
 
-          // If site database does not yet have messages starting from Jan 2025, fetch from 2025-01-01
-          let sinceDate = START_DATE;
+          // Base start date is install_date if available, otherwise default START_DATE
+          let sinceDate = installDate ? `${installDate} 00:00:00` : START_DATE;
+
           if (minTs && minTs <= '2025-01-05' && maxTs && maxTs.length >= 10) {
             const d = new Date(maxTs.slice(0, 10) + 'T00:00:00');
             d.setDate(d.getDate() - 2);
@@ -76,8 +96,18 @@ export async function syncAll(): Promise<SyncResult> {
 
           const messages = await fetchSiteMessages(site.id, sinceDate);
 
-          if (messages.length > 0) {
-            const msgStatements = messages.map((msg) => {
+          // FILTER OUT PRE-INSTALLATION MANUFACTURING TEST MESSAGES
+          const validMessages = messages.filter((msg) => {
+            const ts = msg.attributes.timestamp;
+            if (!ts) return false;
+            if (installDate && ts.slice(0, 10) < installDate) {
+              return false; // Exclude manufacturing test transmissions prior to install_date
+            }
+            return true;
+          });
+
+          if (validMessages.length > 0) {
+            const msgStatements = validMessages.map((msg) => {
               const a = msg.attributes;
               return {
                 sql: `
@@ -112,7 +142,7 @@ export async function syncAll(): Promise<SyncResult> {
               args: [new Date().toISOString(), site.id],
             });
 
-            recordsAdded += messages.length;
+            recordsAdded += validMessages.length;
           }
         } catch (err) {
           errors.push(`${site.id}: ${String(err)}`);

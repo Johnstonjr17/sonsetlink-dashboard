@@ -41,7 +41,9 @@ export async function initSchema(): Promise<void> {
       location TEXT,
       format_name TEXT,
       most_recent_tx TEXT,
-      last_synced_at TEXT
+      last_synced_at TEXT,
+      install_date TEXT,
+      ship_date TEXT
     );
 
     CREATE TABLE IF NOT EXISTS messages (
@@ -78,6 +80,12 @@ export async function initSchema(): Promise<void> {
   `);
 
   try {
+    // Add columns if migrating existing schema
+    await db.execute(`ALTER TABLE sites ADD COLUMN install_date TEXT`).catch(() => {});
+    await db.execute(`ALTER TABLE sites ADD COLUMN ship_date TEXT`).catch(() => {});
+  } catch {}
+
+  try {
     const existing = await db.execute(`SELECT COUNT(*) as cnt FROM groups`);
     if (Number(existing.rows[0]?.cnt ?? 0) === 0) {
       const groupId = 'rosalbali-system';
@@ -103,7 +111,5 @@ export async function initSchema(): Promise<void> {
         args: [groupId, 'SL-018', 'distribution'],
       });
     }
-  } catch {
-    // Ignore seed errors if table exists
-  }
+  } catch {}
 }
