@@ -38,6 +38,9 @@ export default function Navbar() {
           <Link href="/" className={`nav-link ${pathname === '/' ? 'active' : ''}`}>
             Dashboard
           </Link>
+          <Link href="/cumulative" className={`nav-link ${pathname === '/cumulative' ? 'active' : ''}`}>
+            Cumulative Volume
+          </Link>
           <Link href="/quarterly" className={`nav-link ${pathname === '/quarterly' ? 'active' : ''}`}>
             Quarterly Flow
           </Link>
