@@ -16,7 +16,7 @@ export async function GET() {
         s.last_synced_at,
         COUNT(m.id) AS record_count,
         MAX(m.battery_voltage) AS latest_battery,
-        SUM(COALESCE(m.flow_volume, 0) + COALESCE(m.flow2_volume, 0)) AS total_flow_gal
+        SUM(COALESCE(m.flow_volume, 0) + COALESCE(m.flow2_volume, 0) + COALESCE(m.dosing_pump, 0)) AS total_flow_gal
       FROM sites s
       LEFT JOIN messages m ON m.site_id = s.id
       WHERE s.most_recent_tx >= '2025-01-01'

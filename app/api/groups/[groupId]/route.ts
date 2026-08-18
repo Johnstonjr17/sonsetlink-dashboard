@@ -61,8 +61,6 @@ export async function GET(
     const allMemberIds = [...prodSiteIds, ...distSiteIds];
 
     // 3. Auto-detect shared date window across ALL participating sites
-    // sharedStart = MAX(min_date of each site)
-    // sharedEnd   = MIN(max_date of each site)
     const minDates: string[] = [];
     const maxDates: string[] = [];
 
@@ -97,7 +95,7 @@ export async function GET(
       sql: `
         SELECT
           substr(timestamp, 1, 10) as date,
-          SUM(COALESCE(flow_volume, 0) + COALESCE(flow2_volume, 0)) as gal
+          SUM(COALESCE(flow_volume, 0) + COALESCE(flow2_volume, 0) + COALESCE(dosing_pump, 0)) as gal
         FROM messages
         WHERE site_id IN (${prodPlaceholders})
           AND substr(timestamp, 1, 10) >= ?
@@ -114,7 +112,7 @@ export async function GET(
       sql: `
         SELECT
           substr(timestamp, 1, 10) as date,
-          SUM(COALESCE(flow_volume, 0) + COALESCE(flow2_volume, 0)) as gal
+          SUM(COALESCE(flow_volume, 0) + COALESCE(flow2_volume, 0) + COALESCE(dosing_pump, 0)) as gal
         FROM messages
         WHERE site_id IN (${distPlaceholders})
           AND substr(timestamp, 1, 10) >= ?
@@ -155,7 +153,6 @@ export async function GET(
       cumulProdGal += prodGal;
       cumulDistGal += distGal;
 
-      // 7-day rolling window
       const startIdx = Math.max(0, idx - 6);
       const windowSlice = arr.slice(startIdx, idx + 1);
       const roll7Prod = windowSlice.reduce((s, d) => s + (prodMap.get(d) ?? 0), 0);
@@ -184,7 +181,6 @@ export async function GET(
       };
     });
 
-    // 6. Build Weekly Rollup
     const weekMap = new Map<string, { week: string; prod_gal: number; dist_gal: number }>();
     for (const d of daily) {
       const w = getIsoWeek(d.date);
@@ -215,7 +211,6 @@ export async function GET(
       };
     });
 
-    // 7. Overall Summary
     const totalProdGal = daily.reduce((s, r) => s + r.prod_gal, 0);
     const totalDistGal = daily.reduce((s, r) => s + r.dist_gal, 0);
     const netBalanceGal = totalProdGal - totalDistGal;

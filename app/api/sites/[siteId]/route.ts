@@ -23,15 +23,15 @@ export async function GET(
       sql: `
         SELECT
           substr(timestamp, 1, 10) AS date,
-          SUM(COALESCE(flow_volume, 0) + COALESCE(flow2_volume, 0)) AS total_gal,
-          SUM(COALESCE(flow_volume, 0) + COALESCE(flow2_volume, 0)) * 3.78541 AS total_liters,
+          SUM(COALESCE(flow_volume, 0) + COALESCE(flow2_volume, 0) + COALESCE(dosing_pump, 0)) AS total_gal,
+          SUM(COALESCE(flow_volume, 0) + COALESCE(flow2_volume, 0) + COALESCE(dosing_pump, 0)) * 3.78541 AS total_liters,
           SUM(COALESCE(flow_volume, 0)) AS flow1_gal,
           SUM(COALESCE(flow2_volume, 0)) AS flow2_gal,
           AVG(NULLIF(battery_voltage, 0)) AS avg_battery,
           COUNT(*) AS transmissions
         FROM messages
         WHERE site_id = ?
-          AND timestamp >= '2026-01-01'
+          AND timestamp >= '2025-01-01'
         GROUP BY substr(timestamp, 1, 10)
         ORDER BY date ASC
       `,

@@ -1,7 +1,7 @@
 import { getDb, initSchema } from './db';
 import { fetchAllSites, fetchSiteMessages } from './api';
 
-const START_DATE = '2026-01-01 00:00:00';
+const START_DATE = '2025-01-01 00:00:00';
 
 export interface SyncResult {
   sitesUpdated: number;
@@ -56,14 +56,12 @@ export async function syncAll(): Promise<SyncResult> {
     await Promise.all(
       batch.map(async (site) => {
         try {
-          // Check MAX timestamp of existing messages for this site in DB
           const maxMsgRes = await db.execute({
             sql: `SELECT MAX(timestamp) as max_ts FROM messages WHERE site_id = ?`,
             args: [site.id],
           });
           const maxTs = maxMsgRes.rows[0]?.max_ts as string | undefined;
 
-          // Roll back 2 days from max existing timestamp to catch backfilled/delayed satellite transmissions
           let sinceDate = START_DATE;
           if (maxTs && maxTs.length >= 10) {
             const d = new Date(maxTs.slice(0, 10) + 'T00:00:00');
