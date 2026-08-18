@@ -24,7 +24,7 @@ export async function GET(req: NextRequest) {
           s.name,
           s.location,
           substr(m.timestamp, 1, 10) AS date,
-          SUM(COALESCE(m.flow_volume, 0) + COALESCE(m.flow2_volume, 0) + COALESCE(m.dosing_pump, 0)) AS total_gal
+          SUM(COALESCE(m.flow_volume, 0) + COALESCE(m.flow2_volume, 0)) AS total_gal
         FROM messages m
         JOIN sites s ON s.id = m.site_id
         WHERE m.timestamp >= ? AND m.timestamp < ?

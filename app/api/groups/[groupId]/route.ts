@@ -95,7 +95,7 @@ export async function GET(
       sql: `
         SELECT
           substr(timestamp, 1, 10) as date,
-          SUM(COALESCE(flow_volume, 0) + COALESCE(flow2_volume, 0) + COALESCE(dosing_pump, 0)) as gal
+          SUM(COALESCE(flow_volume, 0) + COALESCE(flow2_volume, 0)) as gal
         FROM messages
         WHERE site_id IN (${prodPlaceholders})
           AND substr(timestamp, 1, 10) >= ?
@@ -112,7 +112,7 @@ export async function GET(
       sql: `
         SELECT
           substr(timestamp, 1, 10) as date,
-          SUM(COALESCE(flow_volume, 0) + COALESCE(flow2_volume, 0) + COALESCE(dosing_pump, 0)) as gal
+          SUM(COALESCE(flow_volume, 0) + COALESCE(flow2_volume, 0)) as gal
         FROM messages
         WHERE site_id IN (${distPlaceholders})
           AND substr(timestamp, 1, 10) >= ?

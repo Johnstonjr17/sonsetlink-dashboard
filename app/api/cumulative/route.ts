@@ -20,7 +20,7 @@ export async function GET(req: NextRequest) {
           s.name,
           s.location,
           s.format_name,
-          SUM(COALESCE(m.flow_volume, 0) + COALESCE(m.flow2_volume, 0) + COALESCE(m.dosing_pump, 0)) AS total_gal,
+          SUM(COALESCE(m.flow_volume, 0) + COALESCE(m.flow2_volume, 0)) AS total_gal,
           COUNT(m.id) AS record_count,
           MIN(substr(m.timestamp, 1, 10)) AS first_tx,
           MAX(substr(m.timestamp, 1, 10)) AS last_tx
