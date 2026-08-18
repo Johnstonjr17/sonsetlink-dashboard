@@ -6,6 +6,10 @@ interface CumulativeSiteRecord {
   name: string;
   location: string;
   format_name: string;
+  flow1_gal: number;
+  flow1_liters: number;
+  flow2_gal: number;
+  flow2_liters: number;
   total_gal: number;
   total_liters: number;
   record_count: number;
@@ -17,6 +21,10 @@ interface CumulativeApiResponse {
   startDate: string;
   endDate: string;
   totalSites: number;
+  overallFlow1Gal: number;
+  overallFlow1Liters: number;
+  overallFlow2Gal: number;
+  overallFlow2Liters: number;
   overallGal: number;
   overallLiters: number;
   sites: CumulativeSiteRecord[];
@@ -66,7 +74,12 @@ export default function CumulativePage() {
     if (!data || !data.sites.length) return;
 
     const unitLabel = unit === 'gal' ? 'Gallons' : 'Liters';
-    const valKey = unit === 'gal' ? 'total_gal' : 'total_liters';
+    const f1Key = unit === 'gal' ? 'flow1_gal' : 'flow1_liters';
+    const f2Key = unit === 'gal' ? 'flow2_gal' : 'flow2_liters';
+    const totalKey = unit === 'gal' ? 'total_gal' : 'total_liters';
+
+    const overallF1 = unit === 'gal' ? data.overallFlow1Gal : data.overallFlow1Liters;
+    const overallF2 = unit === 'gal' ? data.overallFlow2Gal : data.overallFlow2Liters;
     const overallTotal = unit === 'gal' ? data.overallGal : data.overallLiters;
 
     const headers = [
@@ -78,13 +91,17 @@ export default function CumulativePage() {
       'Filter End Date',
       'First Telemetry Date in Window',
       'Last Telemetry Date in Window',
-      `Cumulative Volume (${unitLabel})`,
-      '% of Total System Volume',
+      `Flow 1 Volume (${unitLabel})`,
+      `Flow 2 Volume (${unitLabel})`,
+      `Combined Total Volume (${unitLabel})`,
+      '% of System Total Volume',
     ];
 
     const rows = data.sites.map((s) => {
-      const vol = s[valKey];
-      const pct = overallTotal > 0 ? ((vol / overallTotal) * 100).toFixed(1) + '%' : '0%';
+      const f1 = s[f1Key];
+      const f2 = s[f2Key];
+      const tot = s[totalKey];
+      const pct = overallTotal > 0 ? ((tot / overallTotal) * 100).toFixed(1) + '%' : '0%';
       return [
         s.site_id,
         s.name,
@@ -94,7 +111,9 @@ export default function CumulativePage() {
         data.endDate,
         s.first_tx,
         s.last_tx,
-        vol.toString(),
+        f1.toString(),
+        f2.toString(),
+        tot.toString(),
         pct,
       ];
     });
@@ -109,6 +128,8 @@ export default function CumulativePage() {
       data.endDate,
       'N/A',
       'N/A',
+      overallF1.toString(),
+      overallF2.toString(),
       overallTotal.toString(),
       '100%',
     ]);
@@ -148,7 +169,7 @@ export default function CumulativePage() {
       <div className="page-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: 16 }}>
         <div>
           <h1 className="page-title">Master Cumulative Volume</h1>
-          <p className="page-subtitle">Export and filter total water volume produced by site for any custom date range</p>
+          <p className="page-subtitle">Export and filter total water volume by Flow 1, Flow 2, and Combined Totals for any custom date range</p>
         </div>
         <button
           className="btn btn-primary"
@@ -241,26 +262,30 @@ export default function CumulativePage() {
             <div className="metric-unit">{unit === 'gal' ? 'Gallons' : 'Liters'} in window</div>
           </div>
 
+          <div className="metric-card" style={{ borderLeft: '4px solid #6366f1' }}>
+            <div className="metric-label">Flow 1 Cumulative</div>
+            <div className="metric-value">
+              {unit === 'gal'
+                ? (data.overallFlow1Gal / 1000 >= 1000 ? `${(data.overallFlow1Gal / 1000000).toFixed(2)}M` : `${(data.overallFlow1Gal / 1000).toFixed(0)}K`)
+                : (data.overallFlow1Liters / 1000 >= 1000 ? `${(data.overallFlow1Liters / 1000000).toFixed(2)}M` : `${(data.overallFlow1Liters / 1000).toFixed(0)}K`)}
+            </div>
+            <div className="metric-unit">{unit === 'gal' ? 'Gallons' : 'Liters'}</div>
+          </div>
+
+          <div className="metric-card" style={{ borderLeft: '4px solid #f59e0b' }}>
+            <div className="metric-label">Flow 2 Cumulative</div>
+            <div className="metric-value">
+              {unit === 'gal'
+                ? (data.overallFlow2Gal / 1000 >= 1000 ? `${(data.overallFlow2Gal / 1000000).toFixed(2)}M` : `${(data.overallFlow2Gal / 1000).toFixed(0)}K`)
+                : (data.overallFlow2Liters / 1000 >= 1000 ? `${(data.overallFlow2Liters / 1000000).toFixed(2)}M` : `${(data.overallFlow2Liters / 1000).toFixed(0)}K`)}
+            </div>
+            <div className="metric-unit">{unit === 'gal' ? 'Gallons' : 'Liters'}</div>
+          </div>
+
           <div className="metric-card">
             <div className="metric-label">Active Sites Tracked</div>
             <div className="metric-value">{data.totalSites}</div>
             <div className="metric-unit">Projects reporting</div>
-          </div>
-
-          <div className="metric-card">
-            <div className="metric-label">Date Window Span</div>
-            <div className="metric-value">{daySpan}</div>
-            <div className="metric-unit">Total days selected</div>
-          </div>
-
-          <div className="metric-card">
-            <div className="metric-label">Avg Daily System Flow</div>
-            <div className="metric-value">
-              {unit === 'gal'
-                ? Math.round(data.overallGal / daySpan).toLocaleString()
-                : Math.round(data.overallLiters / daySpan).toLocaleString()}
-            </div>
-            <div className="metric-unit">{unit === 'gal' ? 'Gallons / day' : 'Liters / day'}</div>
           </div>
         </div>
       )}
@@ -314,15 +339,20 @@ export default function CumulativePage() {
                   <th>Location</th>
                   <th>First TX in Window</th>
                   <th>Last TX in Window</th>
-                  <th style={{ textAlign: 'right' }}>Cumulative ({unit === 'gal' ? 'Gallons' : 'Liters'})</th>
-                  <th style={{ textAlign: 'right' }}>% of Total Volume</th>
+                  <th style={{ textAlign: 'right' }}>Flow 1 ({unit === 'gal' ? 'Gal' : 'L'})</th>
+                  <th style={{ textAlign: 'right' }}>Flow 2 ({unit === 'gal' ? 'Gal' : 'L'})</th>
+                  <th style={{ textAlign: 'right' }}>Combined Total ({unit === 'gal' ? 'Gal' : 'L'})</th>
+                  <th style={{ textAlign: 'right' }}>% of System Total</th>
                 </tr>
               </thead>
               <tbody>
                 {filteredSites.map((s) => {
-                  const vol = unit === 'gal' ? s.total_gal : s.total_liters;
+                  const f1 = unit === 'gal' ? s.flow1_gal : s.flow1_liters;
+                  const f2 = unit === 'gal' ? s.flow2_gal : s.flow2_liters;
+                  const tot = unit === 'gal' ? s.total_gal : s.total_liters;
+
                   const overallTotal = unit === 'gal' ? data!.overallGal : data!.overallLiters;
-                  const pct = overallTotal > 0 ? ((vol / overallTotal) * 100).toFixed(1) : '0';
+                  const pct = overallTotal > 0 ? ((tot / overallTotal) * 100).toFixed(1) : '0';
 
                   return (
                     <tr key={s.site_id}>
@@ -331,8 +361,14 @@ export default function CumulativePage() {
                       <td>{s.location}</td>
                       <td style={{ fontSize: '0.78rem', color: 'var(--text-secondary)' }}>{s.first_tx}</td>
                       <td style={{ fontSize: '0.78rem', color: 'var(--text-secondary)' }}>{s.last_tx}</td>
+                      <td style={{ textAlign: 'right', fontWeight: 600, color: '#6366f1' }}>
+                        {f1.toLocaleString()}
+                      </td>
+                      <td style={{ textAlign: 'right', fontWeight: 600, color: '#f59e0b' }}>
+                        {f2.toLocaleString()}
+                      </td>
                       <td style={{ textAlign: 'right', fontWeight: 700, color: 'var(--teal-700)', fontSize: '0.9rem' }}>
-                        {vol.toLocaleString()}
+                        {tot.toLocaleString()}
                       </td>
                       <td style={{ textAlign: 'right', fontWeight: 600 }}>
                         <span className="badge badge-default" style={{ fontSize: '0.78rem' }}>{pct}%</span>
@@ -348,6 +384,12 @@ export default function CumulativePage() {
                   </td>
                   <td colSpan={2} style={{ fontSize: '0.78rem', color: 'var(--teal-700)' }}>
                     {startDate} to {endDate}
+                  </td>
+                  <td style={{ textAlign: 'right', color: '#6366f1' }}>
+                    {(unit === 'gal' ? data!.overallFlow1Gal : data!.overallFlow1Liters).toLocaleString()}
+                  </td>
+                  <td style={{ textAlign: 'right', color: '#f59e0b' }}>
+                    {(unit === 'gal' ? data!.overallFlow2Gal : data!.overallFlow2Liters).toLocaleString()}
                   </td>
                   <td style={{ textAlign: 'right', color: 'var(--teal-800)', fontSize: '0.95rem' }}>
                     {(unit === 'gal' ? data!.overallGal : data!.overallLiters).toLocaleString()}

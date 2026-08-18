@@ -20,6 +20,8 @@ export async function GET(req: NextRequest) {
           s.name,
           s.location,
           s.format_name,
+          SUM(COALESCE(m.flow_volume, 0)) AS flow1_gal,
+          SUM(COALESCE(m.flow2_volume, 0)) AS flow2_gal,
           SUM(COALESCE(m.flow_volume, 0) + COALESCE(m.flow2_volume, 0)) AS total_gal,
           COUNT(m.id) AS record_count,
           MIN(substr(m.timestamp, 1, 10)) AS first_tx,
@@ -36,13 +38,23 @@ export async function GET(req: NextRequest) {
     });
 
     const sites = result.rows.map((r) => {
+      const flow1Gal = Math.round(Number(r.flow1_gal ?? 0));
+      const flow2Gal = Math.round(Number(r.flow2_gal ?? 0));
       const totalGal = Math.round(Number(r.total_gal ?? 0));
+
+      const flow1Liters = Math.round(flow1Gal * GALLONS_TO_LITERS);
+      const flow2Liters = Math.round(flow2Gal * GALLONS_TO_LITERS);
       const totalLiters = Math.round(totalGal * GALLONS_TO_LITERS);
+
       return {
         site_id: String(r.site_id),
         name: String(r.name || r.site_id || 'Unnamed Site'),
         location: String(r.location || 'N/A'),
         format_name: String(r.format_name || 'N/A'),
+        flow1_gal: flow1Gal,
+        flow1_liters: flow1Liters,
+        flow2_gal: flow2Gal,
+        flow2_liters: flow2Liters,
         total_gal: totalGal,
         total_liters: totalLiters,
         record_count: Number(r.record_count ?? 0),
@@ -51,13 +63,22 @@ export async function GET(req: NextRequest) {
       };
     });
 
+    const overallFlow1Gal = sites.reduce((s, r) => s + r.flow1_gal, 0);
+    const overallFlow2Gal = sites.reduce((s, r) => s + r.flow2_gal, 0);
     const overallGal = sites.reduce((s, r) => s + r.total_gal, 0);
+
+    const overallFlow1Liters = Math.round(overallFlow1Gal * GALLONS_TO_LITERS);
+    const overallFlow2Liters = Math.round(overallFlow2Gal * GALLONS_TO_LITERS);
     const overallLiters = Math.round(overallGal * GALLONS_TO_LITERS);
 
     return NextResponse.json({
       startDate,
       endDate,
       totalSites: sites.length,
+      overallFlow1Gal,
+      overallFlow1Liters,
+      overallFlow2Gal,
+      overallFlow2Liters,
       overallGal,
       overallLiters,
       sites,
