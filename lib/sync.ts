@@ -56,14 +56,16 @@ export async function syncAll(): Promise<SyncResult> {
     await Promise.all(
       batch.map(async (site) => {
         try {
-          const maxMsgRes = await db.execute({
-            sql: `SELECT MAX(timestamp) as max_ts FROM messages WHERE site_id = ?`,
+          const rangeRes = await db.execute({
+            sql: `SELECT MIN(timestamp) as min_ts, MAX(timestamp) as max_ts FROM messages WHERE site_id = ?`,
             args: [site.id],
           });
-          const maxTs = maxMsgRes.rows[0]?.max_ts as string | undefined;
+          const minTs = rangeRes.rows[0]?.min_ts as string | undefined;
+          const maxTs = rangeRes.rows[0]?.max_ts as string | undefined;
 
+          // If site database does not yet have messages starting from Jan 2025, fetch from 2025-01-01
           let sinceDate = START_DATE;
-          if (maxTs && maxTs.length >= 10) {
+          if (minTs && minTs <= '2025-01-05' && maxTs && maxTs.length >= 10) {
             const d = new Date(maxTs.slice(0, 10) + 'T00:00:00');
             d.setDate(d.getDate() - 2);
             const yyyy = d.getFullYear();
