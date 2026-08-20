@@ -11,6 +11,7 @@ export interface SiteAttributes {
   location: string;
   format_name: string;
   most_recent_tx: string;
+  timezone: string | null;
 }
 
 export interface SiteRecord {

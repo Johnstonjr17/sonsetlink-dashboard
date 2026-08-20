@@ -25,7 +25,6 @@ export async function syncAll(): Promise<SyncResult> {
     return tx >= '2025-01-01';
   });
 
-  // Fetch unit details (install_date & ship_date) for active sites in parallel
   const unitDetailMap = new Map<string, { install_date: string | null; ship_date: string | null }>();
   await Promise.all(
     activeSites.map(async (site) => {
@@ -38,15 +37,16 @@ export async function syncAll(): Promise<SyncResult> {
     const unit = unitDetailMap.get(s.id);
     return {
       sql: `
-        INSERT INTO sites (id, name, location, format_name, most_recent_tx, install_date, ship_date)
-        VALUES (?, ?, ?, ?, ?, ?, ?)
+        INSERT INTO sites (id, name, location, format_name, most_recent_tx, install_date, ship_date, timezone)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?)
         ON CONFLICT(id) DO UPDATE SET
           name = excluded.name,
           location = excluded.location,
           format_name = excluded.format_name,
           most_recent_tx = excluded.most_recent_tx,
           install_date = COALESCE(excluded.install_date, sites.install_date),
-          ship_date = COALESCE(excluded.ship_date, sites.ship_date)
+          ship_date = COALESCE(excluded.ship_date, sites.ship_date),
+          timezone = COALESCE(excluded.timezone, sites.timezone)
       `,
       args: [
         s.id,
@@ -56,6 +56,7 @@ export async function syncAll(): Promise<SyncResult> {
         s.attributes.most_recent_tx ?? null,
         unit?.install_date ?? null,
         unit?.ship_date ?? null,
+        s.attributes.timezone ?? null,
       ],
     };
   });
@@ -82,7 +83,6 @@ export async function syncAll(): Promise<SyncResult> {
           const minTs = rangeRes.rows[0]?.min_ts as string | undefined;
           const maxTs = rangeRes.rows[0]?.max_ts as string | undefined;
 
-          // Base start date is install_date if available, otherwise default START_DATE
           let sinceDate = installDate ? `${installDate} 00:00:00` : START_DATE;
 
           if (minTs && minTs <= '2025-01-05' && maxTs && maxTs.length >= 10) {
@@ -96,12 +96,11 @@ export async function syncAll(): Promise<SyncResult> {
 
           const messages = await fetchSiteMessages(site.id, sinceDate);
 
-          // FILTER OUT PRE-INSTALLATION MANUFACTURING TEST MESSAGES
           const validMessages = messages.filter((msg) => {
             const ts = msg.attributes.timestamp;
             if (!ts) return false;
             if (installDate && ts.slice(0, 10) < installDate) {
-              return false; // Exclude manufacturing test transmissions prior to install_date
+              return false;
             }
             return true;
           });

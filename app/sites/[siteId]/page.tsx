@@ -1,8 +1,8 @@
 'use client';
-import { useEffect, useState } from 'react';
+import { useEffect, useState, use } from 'react';
 import Link from 'next/link';
 import { FlowAreaChart, FlowBarChart, BatteryChart } from '@/components/FlowCharts';
-import { use } from 'react';
+import { formatSiteTime } from '@/lib/formatDate';
 
 interface DailyFlowPoint {
   date: string;
@@ -31,6 +31,7 @@ interface SiteDetail {
   name: string;
   location: string;
   format_name: string;
+  timezone: string | null;
   most_recent_tx: string | null;
   last_synced_at: string | null;
 }
@@ -114,8 +115,9 @@ export default function SitePage({ params }: { params: Promise<{ siteId: string 
           <h1 className="page-title" style={{ marginBottom: 0 }}>{site.name}</h1>
           <span className="badge badge-teal" style={{ fontSize: '0.8rem', padding: '4px 10px' }}>{site.id}</span>
           {site.location && <span className="badge badge-default">{site.location}</span>}
+          {site.timezone && <span className="badge badge-teal" style={{ fontSize: '0.78rem' }}>🌐 {site.timezone}</span>}
         </div>
-        <p className="page-subtitle">{site.format_name} · Data from 2026-01-01 to present</p>
+        <p className="page-subtitle">{site.format_name} · All times formatted in Site Local Time ({site.timezone || 'UTC'})</p>
       </div>
 
       {/* Metric Strip */}
@@ -123,12 +125,12 @@ export default function SitePage({ params }: { params: Promise<{ siteId: string 
         <div className="metric-card">
           <div className="metric-label">Total Flow (Gal)</div>
           <div className="metric-value">{totalGal >= 1000 ? `${(totalGal / 1000).toFixed(1)}K` : Math.round(totalGal).toLocaleString()}</div>
-          <div className="metric-unit">Gallons (2026)</div>
+          <div className="metric-unit">Gallons (Total)</div>
         </div>
         <div className="metric-card">
           <div className="metric-label">Total Flow (Liters)</div>
           <div className="metric-value">{totalLiters >= 1000 ? `${(totalLiters / 1000).toFixed(1)}K` : Math.round(totalLiters).toLocaleString()}</div>
-          <div className="metric-unit">Liters (2026)</div>
+          <div className="metric-unit">Liters (Total)</div>
         </div>
         <div className="metric-card">
           <div className="metric-label">Active Days</div>
@@ -208,18 +210,17 @@ export default function SitePage({ params }: { params: Promise<{ siteId: string 
       {/* Recent Transmissions Table */}
       <div className="card">
         <div className="card-header">
-          <span className="card-title">Recent Transmissions</span>
+          <span className="card-title">Recent Transmissions ({site.timezone || 'UTC'} Time)</span>
           <span className="badge badge-default">Latest 200</span>
         </div>
         <div className="data-table-wrapper">
           <table className="data-table">
             <thead>
               <tr>
-                <th>Timestamp</th>
+                <th>Site Local Time ({site.timezone || 'UTC'})</th>
                 <th>Flow 1 (Gal)</th>
                 <th>Flow 2 (Gal)</th>
-                <th>Flow 1 (L)</th>
-                <th>Flow 2 (L)</th>
+                <th>Dosing Pump (Gal)</th>
                 <th>Time in Use</th>
                 <th>Battery (V)</th>
                 <th>Slot</th>
@@ -228,11 +229,12 @@ export default function SitePage({ params }: { params: Promise<{ siteId: string 
             <tbody>
               {messages.map((m) => (
                 <tr key={m.id}>
-                  <td>{m.timestamp ? new Date(m.timestamp).toLocaleString() : '—'}</td>
+                  <td title={`UTC raw: ${m.timestamp}`} style={{ fontWeight: 500 }}>
+                    {formatSiteTime(m.timestamp, site.timezone)}
+                  </td>
                   <td>{m.flow_volume?.toLocaleString() ?? '—'}</td>
                   <td>{m.flow2_volume?.toLocaleString() ?? '—'}</td>
-                  <td>{m.flow_volume ? Math.round(m.flow_volume * 3.78541).toLocaleString() : '—'}</td>
-                  <td>{m.flow2_volume ? Math.round(m.flow2_volume * 3.78541).toLocaleString() : '—'}</td>
+                  <td>{m.dosing_pump?.toLocaleString() ?? '—'}</td>
                   <td>{formatHMS(m.time_in_use)}</td>
                   <td>{m.battery_voltage?.toFixed(2) ?? '—'}</td>
                   <td>{m.slot ?? '—'}</td>

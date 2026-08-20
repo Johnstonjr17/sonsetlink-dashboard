@@ -43,7 +43,8 @@ export async function initSchema(): Promise<void> {
       most_recent_tx TEXT,
       last_synced_at TEXT,
       install_date TEXT,
-      ship_date TEXT
+      ship_date TEXT,
+      timezone TEXT
     );
 
     CREATE TABLE IF NOT EXISTS messages (
@@ -80,9 +81,9 @@ export async function initSchema(): Promise<void> {
   `);
 
   try {
-    // Add columns if migrating existing schema
     await db.execute(`ALTER TABLE sites ADD COLUMN install_date TEXT`).catch(() => {});
     await db.execute(`ALTER TABLE sites ADD COLUMN ship_date TEXT`).catch(() => {});
+    await db.execute(`ALTER TABLE sites ADD COLUMN timezone TEXT`).catch(() => {});
   } catch {}
 
   try {
