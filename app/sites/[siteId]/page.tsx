@@ -1,26 +1,19 @@
 'use client';
 import { useEffect, useState, use } from 'react';
 import Link from 'next/link';
-import { FlowAreaChart, FlowBarChart, BatteryChart } from '@/components/FlowCharts';
+import { FlowAreaChart, FlowBarChart, BatteryChart, DailyFlowPoint } from '@/components/FlowCharts';
 import { formatSiteTime } from '@/lib/formatDate';
-
-interface DailyFlowPoint {
-  date: string;
-  total_gal: number;
-  total_liters: number;
-  flow1_gal: number;
-  flow2_gal: number;
-  avg_battery: number | null;
-  transmissions: number;
-}
 
 interface Message {
   id: string;
   timestamp: string;
   flow_volume: number | null;
   flow2_volume: number | null;
+  total_volume: number | null;
   dosing_pump: number | null;
   time_in_use: number | null;
+  flow_rate_gpm: number | null;
+  flow_rate_lpm: number | null;
   battery_voltage: number | null;
   slot: number | null;
   backfill: number | null;
@@ -51,11 +44,13 @@ interface NotificationItem {
 type ChartType = 'area' | 'bar';
 type Unit = 'gal' | 'liters';
 
-function formatHMS(seconds: number | null) {
-  if (!seconds) return '—';
-  const h = Math.floor(seconds / 3600);
-  const m = Math.floor((seconds % 3600) / 60);
-  return `${h}h ${m}m`;
+function formatMinutes(minutes: number | null | undefined): string {
+  if (minutes === null || minutes === undefined || minutes === 0) return '0m';
+  const hrs = Math.floor(minutes / 60);
+  const mins = minutes % 60;
+  if (hrs > 0 && mins > 0) return `${hrs}h ${mins}m`;
+  if (hrs > 0) return `${hrs}h`;
+  return `${mins}m`;
 }
 
 function formatTypeName(raw: string): string {
@@ -72,16 +67,10 @@ function formatTypeName(raw: string): string {
       return 'Missing Status Message';
     case 'NO_DIAG_MSG':
       return 'Missing Diagnostic Message';
-    case 'DOSING_MISMATCH':
-      return 'Dosing Pump Mismatch';
-    case 'DOSING_BROKEN':
-      return 'Dosing Pump Failure';
     case 'SAT_BATTERY_LOW':
       return 'Satellite Battery Low';
     case 'UNEXPECTED_GPS_LOC':
       return 'Unexpected GPS Location';
-    case 'MODEM_ON':
-      return 'Modem Powered On';
     default:
       return raw.replace(/_/g, ' ');
   }
@@ -168,8 +157,22 @@ export default function SitePage({ params }: { params: Promise<{ siteId: string 
     ? dailyFlow
     : dailyFlow.slice(-Number(windowDays));
 
-  const totalGal = dailyFlow.reduce((s, r) => s + (r.total_gal ?? 0), 0);
+  // Cumulative volume for the selected window
+  const totalGal = visibleFlowData.reduce((s, r) => s + (r.total_gal ?? 0), 0);
   const totalLiters = totalGal * 3.78541;
+
+  // Average Operating Flow Rate calculation (EXCLUDING zero flow rates)
+  const activeDaysWithFlow = visibleFlowData.filter(
+    (r) => (r.total_mins ?? 0) > 0 && (r.total_gal ?? 0) > 0
+  );
+  const totalActiveGal = activeDaysWithFlow.reduce((s, r) => s + (r.total_gal ?? 0), 0);
+  const totalActiveMins = activeDaysWithFlow.reduce((s, r) => s + (r.total_mins ?? 0), 0);
+
+  const windowAvgGpm = totalActiveMins > 0 ? (totalActiveGal / totalActiveMins) : null;
+  const windowAvgLpm = windowAvgGpm !== null ? windowAvgGpm * 3.78541 : null;
+
+  const windowLabel = windowDays === 'all' ? 'All-Time' : `${windowDays}-Day`;
+
   const avgBattery = batteryTrend.length
     ? batteryTrend.reduce((s, r) => s + (r.avg_battery ?? 0), 0) / batteryTrend.filter((r) => r.avg_battery).length
     : null;
@@ -215,7 +218,7 @@ export default function SitePage({ params }: { params: Promise<{ siteId: string 
       </div>
 
       {/* Active Alerts / Warnings Card */}
-      {(notifications.length > 0) && (
+      {notifications.length > 0 && (
         <div
           className="card"
           style={{
@@ -317,27 +320,42 @@ export default function SitePage({ params }: { params: Promise<{ siteId: string 
       )}
 
       {/* Metric Strip */}
-      <div className="metric-strip">
-        <div className="metric-card">
-          <div className="metric-label">Total Flow (Gal)</div>
-          <div className="metric-value">{totalGal >= 1000 ? `${(totalGal / 1000).toFixed(1)}K` : Math.round(totalGal).toLocaleString()}</div>
-          <div className="metric-unit">Gallons (Total)</div>
+      <div className="metric-strip" style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(170px, 1fr))' }}>
+        {/* Dynamic Period Average Flow Rate Card */}
+        <div className="metric-card" style={{ borderLeft: '4px solid #6366f1' }}>
+          <div className="metric-label">Avg Flow Rate ({windowLabel})</div>
+          <div className="metric-value" style={{ color: '#4338ca' }}>
+            {unit === 'gal'
+              ? (windowAvgGpm !== null ? `${windowAvgGpm.toFixed(1)}` : '—')
+              : (windowAvgLpm !== null ? `${windowAvgLpm.toFixed(1)}` : '—')}
+          </div>
+          <div className="metric-unit">
+            {unit === 'gal' ? 'GPM' : 'LPM'} (active pumping)
+          </div>
         </div>
+
         <div className="metric-card">
-          <div className="metric-label">Total Flow (Liters)</div>
-          <div className="metric-value">{totalLiters >= 1000 ? `${(totalLiters / 1000).toFixed(1)}K` : Math.round(totalLiters).toLocaleString()}</div>
-          <div className="metric-unit">Liters (Total)</div>
+          <div className="metric-label">Total Flow ({windowLabel})</div>
+          <div className="metric-value">
+            {unit === 'gal'
+              ? (totalGal >= 1000 ? `${(totalGal / 1000).toFixed(1)}K` : Math.round(totalGal).toLocaleString())
+              : (totalLiters >= 1000 ? `${(totalLiters / 1000).toFixed(1)}K` : Math.round(totalLiters).toLocaleString())}
+          </div>
+          <div className="metric-unit">{unit === 'gal' ? 'Gallons' : 'Liters'}</div>
         </div>
+
         <div className="metric-card">
           <div className="metric-label">Active Days</div>
-          <div className="metric-value">{activeDays}</div>
-          <div className="metric-unit">Days with flow data</div>
+          <div className="metric-value">{activeDaysWithFlow.length}</div>
+          <div className="metric-unit">Days with flow in window</div>
         </div>
+
         <div className="metric-card">
           <div className="metric-label">Avg Battery</div>
           <div className="metric-value">{avgBattery ? `${avgBattery.toFixed(1)}V` : '—'}</div>
           <div className="metric-unit">Voltage (30-day avg)</div>
         </div>
+
         <div className="metric-card">
           <div className="metric-label">Records</div>
           <div className="metric-value">{messages.length.toLocaleString()}+</div>
@@ -351,7 +369,7 @@ export default function SitePage({ params }: { params: Promise<{ siteId: string 
           <div>
             <span className="card-title">Daily Water Flow</span>
             <span style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', marginLeft: 8 }}>
-              (Use slider below chart to zoom & scroll)
+              (Hover over any bar to view Daily Flow Rate & Run Time)
             </span>
           </div>
           <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
@@ -405,37 +423,54 @@ export default function SitePage({ params }: { params: Promise<{ siteId: string 
 
       {/* Recent Transmissions Table */}
       <div className="card">
-        <div className="card-header">
-          <span className="card-title">Recent Transmissions ({site.timezone || 'UTC'} Time)</span>
-          <span className="badge badge-default">Latest 200</span>
+        <div className="card-header" style={{ flexWrap: 'wrap', gap: 12 }}>
+          <div>
+            <span className="card-title">Recent Transmissions ({site.timezone || 'UTC'} Time)</span>
+            <span className="badge badge-default" style={{ marginLeft: 8 }}>Latest 200 Slots</span>
+          </div>
+          <div className="toggle-group">
+            <button className={`toggle-btn ${unit === 'gal' ? 'active' : ''}`} onClick={() => setUnit('gal')}>Gallons (GPM)</button>
+            <button className={`toggle-btn ${unit === 'liters' ? 'active' : ''}`} onClick={() => setUnit('liters')}>Liters (LPM)</button>
+          </div>
         </div>
         <div className="data-table-wrapper">
           <table className="data-table">
             <thead>
               <tr>
                 <th>Site Local Time ({site.timezone || 'UTC'})</th>
-                <th>Flow 1 (Gal)</th>
-                <th>Flow 2 (Gal)</th>
-                <th>Dosing Pump (Gal)</th>
-                <th>Time in Use</th>
-                <th>Battery (V)</th>
                 <th>Slot</th>
+                <th style={{ textAlign: 'right' }}>Flow 1 ({unit === 'gal' ? 'Gal' : 'L'})</th>
+                <th style={{ textAlign: 'right' }}>Flow 2 ({unit === 'gal' ? 'Gal' : 'L'})</th>
+                <th style={{ textAlign: 'right' }}>Total Volume ({unit === 'gal' ? 'Gal' : 'L'})</th>
+                <th style={{ textAlign: 'center' }}>Active Run Time</th>
+                <th style={{ textAlign: 'right', color: '#4338ca' }}>Flow Rate ({unit === 'gal' ? 'GPM' : 'LPM'})</th>
+                <th style={{ textAlign: 'right' }}>Battery (V)</th>
               </tr>
             </thead>
             <tbody>
-              {messages.map((m) => (
-                <tr key={m.id}>
-                  <td title={`UTC raw: ${m.timestamp}`} style={{ fontWeight: 500 }}>
-                    {formatSiteTime(m.timestamp, site.timezone)}
-                  </td>
-                  <td>{m.flow_volume?.toLocaleString() ?? '—'}</td>
-                  <td>{m.flow2_volume?.toLocaleString() ?? '—'}</td>
-                  <td>{m.dosing_pump?.toLocaleString() ?? '—'}</td>
-                  <td>{formatHMS(m.time_in_use)}</td>
-                  <td>{m.battery_voltage?.toFixed(2) ?? '—'}</td>
-                  <td>{m.slot ?? '—'}</td>
-                </tr>
-              ))}
+              {messages.map((m) => {
+                const f1 = unit === 'gal' ? m.flow_volume : (m.flow_volume ? Math.round(m.flow_volume * 3.78541) : null);
+                const f2 = unit === 'gal' ? m.flow2_volume : (m.flow2_volume ? Math.round(m.flow2_volume * 3.78541) : null);
+                const tot = unit === 'gal' ? m.total_volume : (m.total_volume ? Math.round(m.total_volume * 3.78541) : null);
+                const rate = unit === 'gal' ? m.flow_rate_gpm : m.flow_rate_lpm;
+
+                return (
+                  <tr key={m.id}>
+                    <td title={`UTC raw: ${m.timestamp}`} style={{ fontWeight: 500 }}>
+                      {formatSiteTime(m.timestamp, site.timezone)}
+                    </td>
+                    <td><span className="badge badge-teal">Slot {m.slot ?? '—'}</span></td>
+                    <td style={{ textAlign: 'right' }}>{f1 !== null ? f1.toLocaleString() : '—'}</td>
+                    <td style={{ textAlign: 'right' }}>{f2 !== null ? f2.toLocaleString() : '—'}</td>
+                    <td style={{ textAlign: 'right', fontWeight: 600 }}>{tot !== null ? tot.toLocaleString() : '—'}</td>
+                    <td style={{ textAlign: 'center' }}>{formatMinutes(m.time_in_use)}</td>
+                    <td style={{ textAlign: 'right', fontWeight: 700, color: (rate && rate > 0) ? '#4338ca' : 'inherit' }}>
+                      {rate && rate > 0 ? `${rate.toFixed(1)} ${unit === 'gal' ? 'GPM' : 'LPM'}` : '—'}
+                    </td>
+                    <td style={{ textAlign: 'right' }}>{m.battery_voltage?.toFixed(2) ?? '—'}</td>
+                  </tr>
+                );
+              })}
             </tbody>
           </table>
         </div>

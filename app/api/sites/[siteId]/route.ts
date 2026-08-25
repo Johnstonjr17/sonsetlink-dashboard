@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getDb, initSchema } from '@/lib/db';
 
 const IGNORED_ALERTS = "'DOSING_MISMATCH', 'DOSING_BROKEN', 'MODEM_ON'";
+const GALLONS_TO_LITERS = 3.78541;
 
 export async function GET(
   req: NextRequest,
@@ -28,9 +29,20 @@ export async function GET(
         SELECT
           substr(timestamp, 1, 10) AS date,
           SUM(COALESCE(flow_volume, 0) + COALESCE(flow2_volume, 0)) AS total_gal,
-          SUM(COALESCE(flow_volume, 0) + COALESCE(flow2_volume, 0)) * 3.78541 AS total_liters,
+          SUM(COALESCE(flow_volume, 0) + COALESCE(flow2_volume, 0)) * ${GALLONS_TO_LITERS} AS total_liters,
           SUM(COALESCE(flow_volume, 0)) AS flow1_gal,
           SUM(COALESCE(flow2_volume, 0)) AS flow2_gal,
+          SUM(COALESCE(time_in_use, 0)) AS total_mins,
+          CASE
+            WHEN SUM(COALESCE(time_in_use, 0)) > 0
+            THEN (SUM(COALESCE(flow_volume, 0) + COALESCE(flow2_volume, 0)) / SUM(COALESCE(time_in_use, 0)))
+            ELSE 0
+          END AS daily_avg_gpm,
+          CASE
+            WHEN SUM(COALESCE(time_in_use, 0)) > 0
+            THEN ((SUM(COALESCE(flow_volume, 0) + COALESCE(flow2_volume, 0)) / SUM(COALESCE(time_in_use, 0))) * ${GALLONS_TO_LITERS})
+            ELSE 0
+          END AS daily_avg_lpm,
           AVG(NULLIF(battery_voltage, 0)) AS avg_battery,
           COUNT(*) AS transmissions
         FROM messages
@@ -46,8 +58,26 @@ export async function GET(
     const recentMessagesRes = await db.execute({
       sql: `
         SELECT
-          id, timestamp, flow_volume, flow2_volume, dosing_pump,
-          time_in_use, battery_voltage, slot, backfill
+          id,
+          timestamp,
+          flow_volume,
+          flow2_volume,
+          (COALESCE(flow_volume, 0) + COALESCE(flow2_volume, 0)) AS total_volume,
+          dosing_pump,
+          time_in_use,
+          CASE
+            WHEN time_in_use > 0
+            THEN ((COALESCE(flow_volume, 0) + COALESCE(flow2_volume, 0)) / time_in_use)
+            ELSE 0
+          END AS flow_rate_gpm,
+          CASE
+            WHEN time_in_use > 0
+            THEN (((COALESCE(flow_volume, 0) + COALESCE(flow2_volume, 0)) / time_in_use) * ${GALLONS_TO_LITERS})
+            ELSE 0
+          END AS flow_rate_lpm,
+          battery_voltage,
+          slot,
+          backfill
         FROM messages
         WHERE site_id = ?
           AND (? IS NULL OR substr(timestamp, 1, 10) >= ?)
@@ -73,7 +103,6 @@ export async function GET(
       args: [siteId, installDate ?? null, installDate ?? null],
     });
 
-    // Fetch all notifications for this site excluding ignored alert types
     const notifsRes = await db.execute({
       sql: `
         SELECT

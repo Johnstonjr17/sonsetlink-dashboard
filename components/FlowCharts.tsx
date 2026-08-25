@@ -4,12 +4,15 @@ import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Brush
 } from 'recharts';
 
-interface DailyFlowPoint {
+export interface DailyFlowPoint {
   date: string;
   total_gal: number;
   total_liters: number;
   flow1_gal: number;
   flow2_gal: number;
+  total_mins?: number;
+  daily_avg_gpm?: number;
+  daily_avg_lpm?: number;
   avg_battery: number | null;
   transmissions: number;
 }
@@ -35,9 +38,50 @@ function formatVal(v: number, unit: 'gal' | 'liters') {
   return Math.round(v).toString();
 }
 
+function CustomFlowTooltip({ active, payload, label, unit }: any) {
+  if (!active || !payload || !payload.length) return null;
+  const pt = payload[0].payload as DailyFlowPoint;
+  const vol = unit === 'gal' ? pt.total_gal : pt.total_liters;
+  const unitLabel = unit === 'gal' ? 'Gallons' : 'Liters';
+  const flowRate = unit === 'gal' ? (pt.daily_avg_gpm ?? 0) : (pt.daily_avg_lpm ?? 0);
+  const rateUnit = unit === 'gal' ? 'GPM' : 'LPM';
+  const mins = pt.total_mins ?? 0;
+  const hrs = Math.floor(mins / 60);
+  const remMins = mins % 60;
+  const runTimeStr = mins > 0 ? (hrs > 0 ? `${hrs}h ${remMins}m` : `${remMins}m`) : '0m';
+
+  return (
+    <div
+      style={{
+        background: '#ffffff',
+        border: '1px solid #e2e8f0',
+        borderRadius: 8,
+        padding: '10px 14px',
+        boxShadow: '0 4px 12px rgba(0,0,0,0.08)',
+        fontSize: '0.8rem',
+        color: '#1e293b',
+      }}
+    >
+      <div style={{ fontWeight: 700, marginBottom: 4, color: '#0f172a' }}>{formatDate(label)}</div>
+      <div style={{ color: '#0d9488', fontWeight: 600 }}>
+        Total Volume: {Math.round(vol).toLocaleString()} {unitLabel}
+      </div>
+      {flowRate > 0 && (
+        <div style={{ color: '#4338ca', fontWeight: 600, marginTop: 2 }}>
+          Daily Avg Flow Rate: {flowRate.toFixed(1)} {rateUnit}
+        </div>
+      )}
+      {mins > 0 && (
+        <div style={{ color: '#64748b', fontSize: '0.75rem', marginTop: 2 }}>
+          Active Run Time: {runTimeStr} ({mins} min)
+        </div>
+      )}
+    </div>
+  );
+}
+
 export function FlowAreaChart({ data, unit }: FlowChartProps) {
   const key = unit === 'gal' ? 'total_gal' : 'total_liters';
-  const label = unit === 'gal' ? 'Gallons' : 'Liters';
 
   return (
     <ResponsiveContainer width="100%" height="100%">
@@ -51,11 +95,7 @@ export function FlowAreaChart({ data, unit }: FlowChartProps) {
         <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
         <XAxis dataKey="date" tickFormatter={formatDate} tick={{ fontSize: 11, fill: '#64748b' }} tickLine={false} axisLine={false} />
         <YAxis tickFormatter={(v) => formatVal(v, unit)} tick={{ fontSize: 11, fill: '#64748b' }} tickLine={false} axisLine={false} width={50} />
-        <Tooltip
-          contentStyle={{ borderRadius: 8, border: '1px solid #e2e8f0', boxShadow: '0 4px 6px rgba(0,0,0,0.07)', fontSize: 12 }}
-          formatter={(v: any) => [`${Number(v).toLocaleString()} ${label}`, 'Total Flow']}
-          labelFormatter={(d: any) => formatDate(String(d))}
-        />
+        <Tooltip content={<CustomFlowTooltip unit={unit} />} />
         <Area type="monotone" dataKey={key} stroke={TEAL} strokeWidth={2} fill="url(#flowGradient)" dot={false} activeDot={{ r: 4, fill: TEAL }} />
         <Brush dataKey="date" height={28} stroke="#0d9488" fill="#f0fdfa" tickFormatter={formatDate} />
       </AreaChart>
@@ -65,7 +105,6 @@ export function FlowAreaChart({ data, unit }: FlowChartProps) {
 
 export function FlowBarChart({ data, unit }: FlowChartProps) {
   const key = unit === 'gal' ? 'total_gal' : 'total_liters';
-  const label = unit === 'gal' ? 'Gallons' : 'Liters';
 
   return (
     <ResponsiveContainer width="100%" height="100%">
@@ -73,11 +112,7 @@ export function FlowBarChart({ data, unit }: FlowChartProps) {
         <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" vertical={false} />
         <XAxis dataKey="date" tickFormatter={formatDate} tick={{ fontSize: 11, fill: '#64748b' }} tickLine={false} axisLine={false} />
         <YAxis tickFormatter={(v) => formatVal(v, unit)} tick={{ fontSize: 11, fill: '#64748b' }} tickLine={false} axisLine={false} width={50} />
-        <Tooltip
-          contentStyle={{ borderRadius: 8, border: '1px solid #e2e8f0', fontSize: 12 }}
-          formatter={(v: any) => [`${Number(v).toLocaleString()} ${label}`, 'Total Flow']}
-          labelFormatter={(d: any) => formatDate(String(d))}
-        />
+        <Tooltip content={<CustomFlowTooltip unit={unit} />} />
         <Bar dataKey={key} fill={TEAL} radius={[3, 3, 0, 0]} maxBarSize={32} />
         <Brush dataKey="date" height={28} stroke="#0d9488" fill="#f0fdfa" tickFormatter={formatDate} />
       </BarChart>
