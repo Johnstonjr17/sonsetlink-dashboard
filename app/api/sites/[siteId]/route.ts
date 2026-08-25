@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getDb, initSchema } from '@/lib/db';
 
+const IGNORED_ALERTS = "'DOSING_MISMATCH', 'DOSING_BROKEN', 'MODEM_ON'";
+
 export async function GET(
   req: NextRequest,
   { params }: { params: Promise<{ siteId: string }> }
@@ -71,7 +73,7 @@ export async function GET(
       args: [siteId, installDate ?? null, installDate ?? null],
     });
 
-    // Fetch all notifications for this site
+    // Fetch all notifications for this site excluding ignored alert types
     const notifsRes = await db.execute({
       sql: `
         SELECT
@@ -79,6 +81,7 @@ export async function GET(
           severity, unresolved, info, dismissed, dismissed_at
         FROM notifications
         WHERE site_id = ?
+          AND notification_type_name NOT IN (${IGNORED_ALERTS})
         ORDER BY unresolved DESC, (dismissed = 0 OR dismissed IS NULL) DESC, timestamp DESC
       `,
       args: [siteId],

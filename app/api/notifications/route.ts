@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getDb, initSchema } from '@/lib/db';
 
+const IGNORED_ALERTS = "'DOSING_MISMATCH', 'DOSING_BROKEN', 'MODEM_ON'";
+
 export async function GET(req: NextRequest) {
   try {
     await initSchema();
@@ -26,6 +28,7 @@ export async function GET(req: NextRequest) {
       FROM notifications n
       JOIN sites s ON s.id = n.site_id
       WHERE n.unresolved = 1
+        AND n.notification_type_name NOT IN (${IGNORED_ALERTS})
     `;
 
     const args: any[] = [];
