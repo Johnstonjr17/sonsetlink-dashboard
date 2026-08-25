@@ -1,7 +1,13 @@
 'use client';
 import { useEffect, useState, use } from 'react';
 import Link from 'next/link';
-import { FlowAreaChart, FlowBarChart, BatteryChart, DailyFlowPoint } from '@/components/FlowCharts';
+import {
+  FlowAreaChart,
+  FlowBarChart,
+  FlowRateChart,
+  BatteryChart,
+  DailyFlowPoint,
+} from '@/components/FlowCharts';
 import { formatSiteTime } from '@/lib/formatDate';
 
 interface Message {
@@ -41,6 +47,7 @@ interface NotificationItem {
   dismissed_at: string | null;
 }
 
+type MetricView = 'rate' | 'volume';
 type ChartType = 'area' | 'bar';
 type Unit = 'gal' | 'liters';
 
@@ -116,9 +123,11 @@ export default function SitePage({ params }: { params: Promise<{ siteId: string 
   const [notifications, setNotifications] = useState<NotificationItem[]>([]);
   const [showDismissed, setShowDismissed] = useState(false);
   const [loading, setLoading] = useState(true);
+
+  const [metricView, setMetricView] = useState<MetricView>('rate');
   const [chartType, setChartType] = useState<ChartType>('area');
   const [unit, setUnit] = useState<Unit>('gal');
-  const [windowDays, setWindowDays] = useState<'all' | '90' | '30' | '14' | '7'>('all');
+  const [windowDays, setWindowDays] = useState<'all' | '90' | '30' | '14' | '7'>('90');
 
   useEffect(() => {
     fetch(`/api/sites/${siteId}`)
@@ -168,15 +177,17 @@ export default function SitePage({ params }: { params: Promise<{ siteId: string 
   const totalActiveGal = activeDaysWithFlow.reduce((s, r) => s + (r.total_gal ?? 0), 0);
   const totalActiveMins = activeDaysWithFlow.reduce((s, r) => s + (r.total_mins ?? 0), 0);
 
-  const windowAvgGpm = totalActiveMins > 0 ? (totalActiveGal / totalActiveMins) : null;
+  const windowAvgGpm = totalActiveMins > 0 ? totalActiveGal / totalActiveMins : null;
   const windowAvgLpm = windowAvgGpm !== null ? windowAvgGpm * 3.78541 : null;
+
+  const currentPeriodAverage = unit === 'gal' ? windowAvgGpm : windowAvgLpm;
+  const currentRateUnit = unit === 'gal' ? 'GPM' : 'LPM';
 
   const windowLabel = windowDays === 'all' ? 'All-Time' : `${windowDays}-Day`;
 
   const avgBattery = batteryTrend.length
     ? batteryTrend.reduce((s, r) => s + (r.avg_battery ?? 0), 0) / batteryTrend.filter((r) => r.avg_battery).length
     : null;
-  const activeDays = dailyFlow.filter((r) => r.total_gal > 0).length;
 
   if (loading) {
     return (
@@ -363,16 +374,57 @@ export default function SitePage({ params }: { params: Promise<{ siteId: string 
         </div>
       </div>
 
-      {/* Flow Chart Card */}
+      {/* Main Flow Chart Card */}
       <div className="card" style={{ marginBottom: 24 }}>
         <div className="card-header" style={{ flexWrap: 'wrap', gap: 12 }}>
           <div>
-            <span className="card-title">Daily Water Flow</span>
-            <span style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', marginLeft: 8 }}>
-              (Hover over any bar to view Daily Flow Rate & Run Time)
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+              <span className="card-title">
+                {metricView === 'rate'
+                  ? `Daily Operating Flow Rate vs Period Constant Average`
+                  : `Daily Total Water Volume`}
+              </span>
+              {metricView === 'rate' && currentPeriodAverage !== null && (
+                <span
+                  className="badge"
+                  style={{
+                    background: '#fef3c7',
+                    border: '1px solid #fde68a',
+                    color: '#b45309',
+                    fontSize: '0.76rem',
+                    fontWeight: 600,
+                  }}
+                >
+                  Constant Avg: {currentPeriodAverage.toFixed(1)} {currentRateUnit}
+                </span>
+              )}
+            </div>
+            <span style={{ fontSize: '0.75rem', color: 'var(--text-secondary)' }}>
+              {metricView === 'rate'
+                ? `(Dashed orange line shows the ${windowLabel} constant average of ${currentPeriodAverage ? currentPeriodAverage.toFixed(1) : '—'} ${currentRateUnit})`
+                : `(Hover over any bar to view Daily Flow Rate & Run Time)`}
             </span>
           </div>
-          <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
+
+          <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap', marginLeft: 'auto' }}>
+            {/* View Mode Toggle: Flow Rate vs Volume */}
+            <div className="toggle-group">
+              <button
+                className={`toggle-btn ${metricView === 'rate' ? 'active' : ''}`}
+                onClick={() => setMetricView('rate')}
+                style={metricView === 'rate' ? { background: '#6366f1', color: '#fff' } : undefined}
+              >
+                ⚡ Flow Rate ({unit === 'gal' ? 'GPM' : 'LPM'})
+              </button>
+              <button
+                className={`toggle-btn ${metricView === 'volume' ? 'active' : ''}`}
+                onClick={() => setMetricView('volume')}
+              >
+                💧 Total Volume
+              </button>
+            </div>
+
+            {/* Time Window Presets */}
             <div className="toggle-group">
               <button className={`toggle-btn ${windowDays === 'all' ? 'active' : ''}`} onClick={() => setWindowDays('all')}>All Time</button>
               <button className={`toggle-btn ${windowDays === '90' ? 'active' : ''}`} onClick={() => setWindowDays('90')}>90D</button>
@@ -380,16 +432,23 @@ export default function SitePage({ params }: { params: Promise<{ siteId: string 
               <button className={`toggle-btn ${windowDays === '14' ? 'active' : ''}`} onClick={() => setWindowDays('14')}>14D</button>
               <button className={`toggle-btn ${windowDays === '7' ? 'active' : ''}`} onClick={() => setWindowDays('7')}>7D</button>
             </div>
+
+            {/* Units Toggle */}
             <div className="toggle-group">
               <button className={`toggle-btn ${unit === 'gal' ? 'active' : ''}`} onClick={() => setUnit('gal')}>Gallons</button>
               <button className={`toggle-btn ${unit === 'liters' ? 'active' : ''}`} onClick={() => setUnit('liters')}>Liters</button>
             </div>
-            <div className="toggle-group">
-              <button className={`toggle-btn ${chartType === 'area' ? 'active' : ''}`} onClick={() => setChartType('area')}>Area</button>
-              <button className={`toggle-btn ${chartType === 'bar' ? 'active' : ''}`} onClick={() => setChartType('bar')}>Bar</button>
-            </div>
+
+            {/* Chart Style (Area/Bar) for Volume */}
+            {metricView === 'volume' && (
+              <div className="toggle-group">
+                <button className={`toggle-btn ${chartType === 'area' ? 'active' : ''}`} onClick={() => setChartType('area')}>Area</button>
+                <button className={`toggle-btn ${chartType === 'bar' ? 'active' : ''}`} onClick={() => setChartType('bar')}>Bar</button>
+              </div>
+            )}
           </div>
         </div>
+
         <div className="card-body">
           {dailyFlow.length === 0 ? (
             <div className="empty-state" style={{ padding: '40px 0' }}>
@@ -398,10 +457,17 @@ export default function SitePage({ params }: { params: Promise<{ siteId: string 
             </div>
           ) : (
             <div className="chart-container-tall">
-              {chartType === 'area'
-                ? <FlowAreaChart data={visibleFlowData} unit={unit} />
-                : <FlowBarChart data={visibleFlowData} unit={unit} />
-              }
+              {metricView === 'rate' ? (
+                <FlowRateChart
+                  data={visibleFlowData}
+                  unit={unit}
+                  periodAverage={currentPeriodAverage}
+                />
+              ) : chartType === 'area' ? (
+                <FlowAreaChart data={visibleFlowData} unit={unit} />
+              ) : (
+                <FlowBarChart data={visibleFlowData} unit={unit} />
+              )}
             </div>
           )}
         </div>

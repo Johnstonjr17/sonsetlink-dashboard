@@ -1,7 +1,7 @@
 'use client';
 import {
   ResponsiveContainer, ComposedChart, AreaChart, Area,
-  BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Brush
+  BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Brush, ReferenceLine
 } from 'recharts';
 
 export interface DailyFlowPoint {
@@ -80,6 +80,48 @@ function CustomFlowTooltip({ active, payload, label, unit }: any) {
   );
 }
 
+function CustomRateTooltip({ active, payload, label, unit, periodAverage }: any) {
+  if (!active || !payload || !payload.length) return null;
+  const pt = payload[0].payload as DailyFlowPoint;
+  const flowRate = unit === 'gal' ? (pt.daily_avg_gpm ?? 0) : (pt.daily_avg_lpm ?? 0);
+  const rateUnit = unit === 'gal' ? 'GPM' : 'LPM';
+  const mins = pt.total_mins ?? 0;
+  const hrs = Math.floor(mins / 60);
+  const remMins = mins % 60;
+  const runTimeStr = mins > 0 ? (hrs > 0 ? `${hrs}h ${remMins}m` : `${remMins}m`) : '0m';
+  const vol = unit === 'gal' ? pt.total_gal : pt.total_liters;
+  const volUnit = unit === 'gal' ? 'gal' : 'L';
+
+  return (
+    <div
+      style={{
+        background: '#ffffff',
+        border: '1px solid #e2e8f0',
+        borderRadius: 8,
+        padding: '10px 14px',
+        boxShadow: '0 4px 12px rgba(0,0,0,0.08)',
+        fontSize: '0.8rem',
+        color: '#1e293b',
+      }}
+    >
+      <div style={{ fontWeight: 700, marginBottom: 4, color: '#0f172a' }}>{formatDate(label)}</div>
+      <div style={{ color: '#4338ca', fontWeight: 700, fontSize: '0.88rem' }}>
+        Daily Flow Rate: {flowRate > 0 ? `${flowRate.toFixed(1)} ${rateUnit}` : 'No Flow (0 GPM)'}
+      </div>
+      {periodAverage !== null && periodAverage > 0 && (
+        <div style={{ color: '#b45309', fontWeight: 600, marginTop: 2 }}>
+          Period Constant Avg: {periodAverage.toFixed(1)} {rateUnit}
+        </div>
+      )}
+      {mins > 0 && (
+        <div style={{ color: '#64748b', fontSize: '0.75rem', marginTop: 3 }}>
+          Volume: {Math.round(vol).toLocaleString()} {volUnit} · Run Time: {runTimeStr}
+        </div>
+      )}
+    </div>
+  );
+}
+
 export function FlowAreaChart({ data, unit }: FlowChartProps) {
   const key = unit === 'gal' ? 'total_gal' : 'total_liters';
 
@@ -116,6 +158,67 @@ export function FlowBarChart({ data, unit }: FlowChartProps) {
         <Bar dataKey={key} fill={TEAL} radius={[3, 3, 0, 0]} maxBarSize={32} />
         <Brush dataKey="date" height={28} stroke="#0d9488" fill="#f0fdfa" tickFormatter={formatDate} />
       </BarChart>
+    </ResponsiveContainer>
+  );
+}
+
+export function FlowRateChart({
+  data,
+  unit,
+  periodAverage,
+}: {
+  data: DailyFlowPoint[];
+  unit: 'gal' | 'liters';
+  periodAverage: number | null;
+}) {
+  const rateKey = unit === 'gal' ? 'daily_avg_gpm' : 'daily_avg_lpm';
+  const rateUnit = unit === 'gal' ? 'GPM' : 'LPM';
+
+  return (
+    <ResponsiveContainer width="100%" height="100%">
+      <ComposedChart data={data} margin={{ top: 24, right: 24, left: 0, bottom: 0 }}>
+        <defs>
+          <linearGradient id="rateGradient" x1="0" y1="0" x2="0" y2="1">
+            <stop offset="5%" stopColor={INDIGO} stopOpacity={0.25} />
+            <stop offset="95%" stopColor={INDIGO} stopOpacity={0.02} />
+          </linearGradient>
+        </defs>
+        <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
+        <XAxis dataKey="date" tickFormatter={formatDate} tick={{ fontSize: 11, fill: '#64748b' }} tickLine={false} axisLine={false} />
+        <YAxis
+          tickFormatter={(v) => `${Math.round(v)}`}
+          tick={{ fontSize: 11, fill: '#64748b' }}
+          tickLine={false}
+          axisLine={false}
+          width={45}
+        />
+        <Tooltip content={<CustomRateTooltip unit={unit} periodAverage={periodAverage} />} />
+        {periodAverage !== null && periodAverage > 0 && (
+          <ReferenceLine
+            y={periodAverage}
+            stroke="#f59e0b"
+            strokeDasharray="5 5"
+            strokeWidth={2.5}
+            label={{
+              value: `Period Avg: ${periodAverage.toFixed(1)} ${rateUnit}`,
+              fill: '#b45309',
+              fontSize: 12,
+              fontWeight: 700,
+              position: 'insideTopRight',
+            }}
+          />
+        )}
+        <Area
+          type="monotone"
+          dataKey={rateKey}
+          stroke={INDIGO}
+          strokeWidth={2.5}
+          fill="url(#rateGradient)"
+          dot={{ r: 3, fill: INDIGO }}
+          activeDot={{ r: 5, fill: INDIGO }}
+        />
+        <Brush dataKey="date" height={28} stroke="#6366f1" fill="#eef2ff" tickFormatter={formatDate} />
+      </ComposedChart>
     </ResponsiveContainer>
   );
 }
