@@ -10,6 +10,8 @@ interface SiteCardProps {
   latest_battery: number | null;
   record_count: number;
   total_flow_gal: number | null;
+  active_alerts_count?: number;
+  active_alert_types?: string | null;
 }
 
 function getLocationBadgeClass(location: string | null) {
@@ -47,12 +49,33 @@ function getBatteryStatus(v: number | null): { label: string; cls: string } {
   return { label: `${v.toFixed(1)}V`, cls: 'badge-red' };
 }
 
-export default function SiteCard({ id, name, location, format_name, most_recent_tx, latest_battery, record_count, total_flow_gal }: SiteCardProps) {
+function formatAlertLabel(typesStr: string | null | undefined, count: number): string {
+  if (!typesStr) return `${count} Alert${count > 1 ? 's' : ''}`;
+  const types = typesStr.split(',');
+  if (types.length === 1) {
+    return types[0].replace(/_/g, ' ');
+  }
+  return `${types[0].replace(/_/g, ' ')} (+${types.length - 1} more)`;
+}
+
+export default function SiteCard({
+  id,
+  name,
+  location,
+  format_name,
+  most_recent_tx,
+  latest_battery,
+  record_count,
+  total_flow_gal,
+  active_alerts_count,
+  active_alert_types,
+}: SiteCardProps) {
   const battery = getBatteryStatus(latest_battery);
+  const hasAlerts = active_alerts_count !== undefined && active_alerts_count > 0;
 
   return (
     <Link href={`/sites/${id}`} style={{ textDecoration: 'none' }}>
-      <article className="site-card">
+      <article className="site-card" style={hasAlerts ? { borderLeft: '4px solid #f59e0b' } : undefined}>
         <div className="site-card-header">
           <div>
             <div className="site-card-name">{name}</div>
@@ -60,6 +83,27 @@ export default function SiteCard({ id, name, location, format_name, most_recent_
           </div>
           <span className={`badge ${getLocationBadgeClass(location)}`}>{location || 'N/A'}</span>
         </div>
+
+        {hasAlerts && (
+          <div
+            style={{
+              margin: '8px 0 12px',
+              padding: '6px 10px',
+              borderRadius: 6,
+              background: '#fffbeb',
+              border: '1px solid #fde68a',
+              color: '#b45309',
+              fontSize: '0.75rem',
+              fontWeight: 600,
+              display: 'flex',
+              alignItems: 'center',
+              gap: 6,
+            }}
+          >
+            <span>⚠️</span>
+            <span>{formatAlertLabel(active_alert_types, active_alerts_count)}</span>
+          </div>
+        )}
 
         <div className="site-card-stats">
           <div className="stat-item">

@@ -1,5 +1,5 @@
 import { getDb, initSchema } from './db';
-import { fetchAllSites, fetchSiteUnitDetails, fetchSiteMessages } from './api';
+import { fetchAllSites, fetchSiteUnitDetails, fetchSiteNotifications, fetchSiteMessages } from './api';
 
 const START_DATE = '2025-01-01 00:00:00';
 
@@ -76,6 +76,41 @@ export async function syncAll(): Promise<SyncResult> {
           const unit = unitDetailMap.get(site.id);
           const installDate = unit?.install_date;
 
+          // 1. Sync Site Notifications/Warnings
+          try {
+            const notifs = await fetchSiteNotifications(site.id);
+            if (notifs.length > 0) {
+              const notifStatements = notifs.map((n) => {
+                const a = n.attributes;
+                return {
+                  sql: `
+                    INSERT INTO notifications (id, site_id, timestamp, notification_type_name, severity, unresolved, info)
+                    VALUES (?, ?, ?, ?, ?, ?, ?)
+                    ON CONFLICT(id) DO UPDATE SET
+                      timestamp = excluded.timestamp,
+                      notification_type_name = excluded.notification_type_name,
+                      severity = excluded.severity,
+                      unresolved = excluded.unresolved,
+                      info = excluded.info
+                  `,
+                  args: [
+                    n.id,
+                    site.id,
+                    a.timestamp,
+                    a.notification_type_name,
+                    a.severity ?? 0,
+                    a.unresolved ? 1 : 0,
+                    JSON.stringify(a.info ?? []),
+                  ],
+                };
+              });
+              await db.batch(notifStatements, 'write');
+            }
+          } catch (notifErr) {
+            console.error(`Error syncing notifications for ${site.id}:`, notifErr);
+          }
+
+          // 2. Sync Site Telemetry Messages
           const rangeRes = await db.execute({
             sql: `SELECT MIN(timestamp) as min_ts, MAX(timestamp) as max_ts FROM messages WHERE site_id = ?`,
             args: [site.id],

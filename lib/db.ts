@@ -78,6 +78,23 @@ export async function initSchema(): Promise<void> {
       role TEXT NOT NULL,
       PRIMARY KEY (group_id, site_id)
     );
+
+    CREATE TABLE IF NOT EXISTS notifications (
+      id TEXT PRIMARY KEY,
+      site_id TEXT NOT NULL,
+      timestamp TEXT NOT NULL,
+      notification_type_name TEXT NOT NULL,
+      severity INTEGER DEFAULT 0,
+      unresolved INTEGER DEFAULT 1,
+      info TEXT,
+      dismissed INTEGER DEFAULT 0,
+      dismissed_at TEXT,
+      FOREIGN KEY (site_id) REFERENCES sites(id)
+    );
+
+    CREATE INDEX IF NOT EXISTS idx_notifications_site_id ON notifications(site_id);
+    CREATE INDEX IF NOT EXISTS idx_notifications_unresolved ON notifications(unresolved);
+    CREATE INDEX IF NOT EXISTS idx_notifications_dismissed ON notifications(dismissed);
   `);
 
   try {

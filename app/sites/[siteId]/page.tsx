@@ -36,6 +36,18 @@ interface SiteDetail {
   last_synced_at: string | null;
 }
 
+interface NotificationItem {
+  id: string;
+  site_id: string;
+  timestamp: string;
+  notification_type_name: string;
+  severity: number;
+  unresolved: boolean;
+  info: any;
+  dismissed: boolean;
+  dismissed_at: string | null;
+}
+
 type ChartType = 'area' | 'bar';
 type Unit = 'gal' | 'liters';
 
@@ -46,6 +58,65 @@ function formatHMS(seconds: number | null) {
   return `${h}h ${m}m`;
 }
 
+function formatTypeName(raw: string): string {
+  switch (raw) {
+    case 'LOW_FLOW_RATE':
+      return 'Low Flow Rate';
+    case 'LOW_FLOW':
+      return 'Low Daily Flow';
+    case 'NO_FLOW_MULTIPLE_DAYS':
+      return 'No Flow (Multiple Days)';
+    case 'NO_USAGE_MSG':
+      return 'Missing Usage Message';
+    case 'NO_STATUS_MSG':
+      return 'Missing Status Message';
+    case 'NO_DIAG_MSG':
+      return 'Missing Diagnostic Message';
+    case 'DOSING_MISMATCH':
+      return 'Dosing Pump Mismatch';
+    case 'DOSING_BROKEN':
+      return 'Dosing Pump Failure';
+    case 'SAT_BATTERY_LOW':
+      return 'Satellite Battery Low';
+    case 'UNEXPECTED_GPS_LOC':
+      return 'Unexpected GPS Location';
+    case 'MODEM_ON':
+      return 'Modem Powered On';
+    default:
+      return raw.replace(/_/g, ' ');
+  }
+}
+
+function renderDiagnosticInfo(info: any) {
+  if (!info) return null;
+  const items = Array.isArray(info) ? info : [info];
+  if (items.length === 0) return null;
+
+  return (
+    <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginTop: 6 }}>
+      {items.map((item, idx) => {
+        if (typeof item !== 'object' || item === null) {
+          return <span key={idx} className="badge badge-default">{String(item)}</span>;
+        }
+        return Object.entries(item).map(([k, v]) => (
+          <span
+            key={k}
+            style={{
+              fontSize: '0.72rem',
+              padding: '2px 8px',
+              borderRadius: 4,
+              background: 'rgba(0,0,0,0.06)',
+              color: 'inherit',
+            }}
+          >
+            <strong>{k.replace(/_/g, ' ')}:</strong> {String(v)}
+          </span>
+        ));
+      })}
+    </div>
+  );
+}
+
 export default function SitePage({ params }: { params: Promise<{ siteId: string }> }) {
   const { siteId } = use(params);
 
@@ -53,6 +124,8 @@ export default function SitePage({ params }: { params: Promise<{ siteId: string 
   const [dailyFlow, setDailyFlow] = useState<DailyFlowPoint[]>([]);
   const [messages, setMessages] = useState<Message[]>([]);
   const [batteryTrend, setBatteryTrend] = useState<{ date: string; avg_battery: number | null }[]>([]);
+  const [notifications, setNotifications] = useState<NotificationItem[]>([]);
+  const [showDismissed, setShowDismissed] = useState(false);
   const [loading, setLoading] = useState(true);
   const [chartType, setChartType] = useState<ChartType>('area');
   const [unit, setUnit] = useState<Unit>('gal');
@@ -66,9 +139,30 @@ export default function SitePage({ params }: { params: Promise<{ siteId: string 
         setDailyFlow(d.dailyFlow ?? []);
         setMessages(d.recentMessages ?? []);
         setBatteryTrend(d.batteryTrend ?? []);
+        setNotifications(d.notifications ?? []);
       })
       .finally(() => setLoading(false));
   }, [siteId]);
+
+  async function toggleDismiss(notifId: string, currentDismissed: boolean) {
+    const nextState = !currentDismissed;
+    setNotifications((prev) =>
+      prev.map((n) => (n.id === notifId ? { ...n, dismissed: nextState } : n))
+    );
+
+    try {
+      await fetch('/api/notifications', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id: notifId, dismissed: nextState }),
+      });
+    } catch (err) {
+      console.error('Failed to update notification dismissal state:', err);
+    }
+  }
+
+  const activeAlerts = notifications.filter((n) => n.unresolved && !n.dismissed);
+  const visibleAlerts = showDismissed ? notifications : activeAlerts;
 
   const visibleFlowData = windowDays === 'all'
     ? dailyFlow
@@ -119,6 +213,108 @@ export default function SitePage({ params }: { params: Promise<{ siteId: string 
         </div>
         <p className="page-subtitle">{site.format_name} · All times formatted in Site Local Time ({site.timezone || 'UTC'})</p>
       </div>
+
+      {/* Active Alerts / Warnings Card */}
+      {(notifications.length > 0) && (
+        <div
+          className="card"
+          style={{
+            marginBottom: 24,
+            borderColor: activeAlerts.length > 0 ? '#fde68a' : undefined,
+            background: activeAlerts.length > 0 ? '#fffdf7' : undefined,
+          }}
+        >
+          <div className="card-header" style={{ flexWrap: 'wrap', gap: 12 }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+              <span style={{ fontSize: '1.2rem' }}>{activeAlerts.length > 0 ? '⚠️' : '✅'}</span>
+              <span className="card-title" style={{ color: activeAlerts.length > 0 ? '#92400e' : 'inherit' }}>
+                {activeAlerts.length > 0
+                  ? `Active Warnings (${activeAlerts.length})`
+                  : 'Site Notifications'}
+              </span>
+              {activeAlerts.length === 0 && (
+                <span className="badge badge-green" style={{ fontSize: '0.75rem' }}>No active alerts</span>
+              )}
+            </div>
+
+            <div style={{ marginLeft: 'auto' }}>
+              <button
+                className="btn btn-secondary"
+                style={{ fontSize: '0.75rem', padding: '4px 10px' }}
+                onClick={() => setShowDismissed(!showDismissed)}
+              >
+                {showDismissed ? 'Hide Dismissed' : `View All / History (${notifications.length})`}
+              </button>
+            </div>
+          </div>
+
+          <div style={{ padding: '12px 20px', display: 'flex', flexDirection: 'column', gap: 12 }}>
+            {visibleAlerts.length === 0 ? (
+              <div style={{ color: 'var(--text-secondary)', fontSize: '0.85rem', padding: '8px 0' }}>
+                All site warnings have been acknowledged or resolved.
+              </div>
+            ) : (
+              visibleAlerts.map((n) => {
+                const isDismissed = n.dismissed;
+                const isUnresolved = n.unresolved;
+
+                return (
+                  <div
+                    key={n.id}
+                    style={{
+                      padding: 14,
+                      borderRadius: 8,
+                      border: '1px solid',
+                      borderColor: isDismissed ? '#e5e7eb' : isUnresolved ? '#fed7aa' : '#bbf7d0',
+                      background: isDismissed ? '#f9fafb' : isUnresolved ? '#fff7ed' : '#f0fdf4',
+                      display: 'flex',
+                      justifyContent: 'space-between',
+                      alignItems: 'flex-start',
+                      gap: 16,
+                      flexWrap: 'wrap',
+                      opacity: isDismissed ? 0.75 : 1,
+                    }}
+                  >
+                    <div style={{ flex: 1, minWidth: 260 }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+                        <strong style={{ fontSize: '0.92rem', color: isDismissed ? '#4b5563' : isUnresolved ? '#9a3412' : '#166534' }}>
+                          {formatTypeName(n.notification_type_name)}
+                        </strong>
+                        <span className="badge badge-default" style={{ fontSize: '0.7rem' }}>
+                          {formatSiteTime(n.timestamp, site.timezone)}
+                        </span>
+                        {isDismissed ? (
+                          <span className="badge badge-default" style={{ fontSize: '0.68rem' }}>Acknowledged</span>
+                        ) : isUnresolved ? (
+                          <span className="badge badge-amber" style={{ fontSize: '0.68rem' }}>Active</span>
+                        ) : (
+                          <span className="badge badge-green" style={{ fontSize: '0.68rem' }}>Resolved</span>
+                        )}
+                      </div>
+
+                      {renderDiagnosticInfo(n.info)}
+                    </div>
+
+                    <button
+                      className="btn btn-secondary"
+                      style={{
+                        fontSize: '0.75rem',
+                        padding: '5px 12px',
+                        background: isDismissed ? '#ffffff' : '#fff',
+                        borderColor: isDismissed ? '#d1d5db' : '#f59e0b',
+                        color: isDismissed ? 'var(--text-secondary)' : '#92400e',
+                      }}
+                      onClick={() => toggleDismiss(n.id, isDismissed)}
+                    >
+                      {isDismissed ? '↩ Un-dismiss' : '✓ Acknowledge / Dismiss'}
+                    </button>
+                  </div>
+                );
+              })
+            )}
+          </div>
+        </div>
+      )}
 
       {/* Metric Strip */}
       <div className="metric-strip">

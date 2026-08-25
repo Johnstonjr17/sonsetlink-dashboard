@@ -40,6 +40,20 @@ export interface UnitDetails {
   ship_date: string | null;
 }
 
+export interface NotificationAttributes {
+  site_identifier: string;
+  timestamp: string;
+  notification_type_name: string;
+  info: any;
+  severity: number;
+  unresolved: boolean;
+}
+
+export interface NotificationRecord {
+  id: string;
+  attributes: NotificationAttributes;
+}
+
 export async function fetchAllSites(): Promise<SiteRecord[]> {
   const res = await fetch(`${BASE_URL}/sites`, { headers: defaultHeaders });
   if (!res.ok) throw new Error(`Failed to fetch sites: ${res.status}`);
@@ -59,6 +73,17 @@ export async function fetchSiteUnitDetails(siteId: string): Promise<UnitDetails>
     };
   } catch {
     return { install_date: null, ship_date: null };
+  }
+}
+
+export async function fetchSiteNotifications(siteId: string): Promise<NotificationRecord[]> {
+  try {
+    const res = await fetch(`${BASE_URL}/sites/${siteId}/notifications`, { headers: defaultHeaders });
+    if (!res.ok) return [];
+    const json = await res.json();
+    return json.data ?? [];
+  } catch {
+    return [];
   }
 }
 

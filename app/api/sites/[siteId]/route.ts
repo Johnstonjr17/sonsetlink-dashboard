@@ -19,6 +19,8 @@ export async function GET(
       return NextResponse.json({ error: 'Site not found' }, { status: 404 });
     }
 
+    const installDate = site.install_date as string | undefined;
+
     const dailyFlowRes = await db.execute({
       sql: `
         SELECT
@@ -32,10 +34,11 @@ export async function GET(
         FROM messages
         WHERE site_id = ?
           AND timestamp >= '2025-01-01'
+          AND (? IS NULL OR substr(timestamp, 1, 10) >= ?)
         GROUP BY substr(timestamp, 1, 10)
         ORDER BY date ASC
       `,
-      args: [siteId],
+      args: [siteId, installDate ?? null, installDate ?? null],
     });
 
     const recentMessagesRes = await db.execute({
@@ -45,10 +48,11 @@ export async function GET(
           time_in_use, battery_voltage, slot, backfill
         FROM messages
         WHERE site_id = ?
+          AND (? IS NULL OR substr(timestamp, 1, 10) >= ?)
         ORDER BY timestamp DESC
         LIMIT 200
       `,
-      args: [siteId],
+      args: [siteId, installDate ?? null, installDate ?? null],
     });
 
     const batteryTrendRes = await db.execute({
@@ -59,11 +63,45 @@ export async function GET(
         FROM messages
         WHERE site_id = ?
           AND battery_voltage IS NOT NULL
+          AND (? IS NULL OR substr(timestamp, 1, 10) >= ?)
         GROUP BY substr(timestamp, 1, 10)
         ORDER BY date DESC
         LIMIT 30
       `,
+      args: [siteId, installDate ?? null, installDate ?? null],
+    });
+
+    // Fetch all notifications for this site
+    const notifsRes = await db.execute({
+      sql: `
+        SELECT
+          id, site_id, timestamp, notification_type_name,
+          severity, unresolved, info, dismissed, dismissed_at
+        FROM notifications
+        WHERE site_id = ?
+        ORDER BY unresolved DESC, (dismissed = 0 OR dismissed IS NULL) DESC, timestamp DESC
+      `,
       args: [siteId],
+    });
+
+    const notifications = notifsRes.rows.map((r) => {
+      let parsedInfo = null;
+      try {
+        parsedInfo = typeof r.info === 'string' ? JSON.parse(r.info) : r.info;
+      } catch {
+        parsedInfo = r.info;
+      }
+      return {
+        id: String(r.id),
+        site_id: String(r.site_id),
+        timestamp: String(r.timestamp),
+        notification_type_name: String(r.notification_type_name),
+        severity: Number(r.severity ?? 0),
+        unresolved: Boolean(r.unresolved),
+        info: parsedInfo,
+        dismissed: Boolean(r.dismissed),
+        dismissed_at: r.dismissed_at ? String(r.dismissed_at) : null,
+      };
     });
 
     return NextResponse.json({
@@ -71,6 +109,7 @@ export async function GET(
       dailyFlow: dailyFlowRes.rows,
       recentMessages: recentMessagesRes.rows,
       batteryTrend: [...batteryTrendRes.rows].reverse(),
+      notifications,
     });
   } catch (err) {
     return NextResponse.json({ error: String(err) }, { status: 500 });

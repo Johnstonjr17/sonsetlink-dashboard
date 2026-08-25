@@ -12,6 +12,8 @@ interface Site {
   record_count: number;
   total_flow_gal: number | null;
   last_synced_at: string | null;
+  active_alerts_count?: number;
+  active_alert_types?: string | null;
 }
 
 export default function HomePage() {
@@ -19,6 +21,7 @@ export default function HomePage() {
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
   const [error, setError] = useState<string | null>(null);
+  const [alertFilter, setAlertFilter] = useState<'all' | 'alerts_only'>('all');
 
   useEffect(() => {
     fetch('/api/sites')
@@ -41,8 +44,14 @@ export default function HomePage() {
   }, []);
 
   const safeSites = Array.isArray(sites) ? sites : [];
+
+  const sitesWithAlerts = safeSites.filter((s) => (s?.active_alerts_count ?? 0) > 0);
+
   const filtered = safeSites.filter((s) => {
     if (!s) return false;
+    if (alertFilter === 'alerts_only' && !(s.active_alerts_count && s.active_alerts_count > 0)) {
+      return false;
+    }
     const q = search.toLowerCase();
     return (
       (s.name && s.name.toLowerCase().includes(q)) ||
@@ -78,7 +87,7 @@ export default function HomePage() {
         </div>
       )}
 
-      <div className="search-row">
+      <div className="search-row" style={{ flexWrap: 'wrap', gap: 12 }}>
         <div className="search-input-wrapper">
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
             <circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/>
@@ -90,15 +99,33 @@ export default function HomePage() {
             onChange={(e) => setSearch(e.target.value)}
           />
         </div>
-        <span className="sites-count">
-          {loading ? 'Loading…' : `${filtered.length} sites`}
-        </span>
+
+        <div className="toggle-group" style={{ marginLeft: 'auto' }}>
+          <button
+            className={`toggle-btn ${alertFilter === 'all' ? 'active' : ''}`}
+            onClick={() => setAlertFilter('all')}
+          >
+            All Sites ({safeSites.length})
+          </button>
+          <button
+            className={`toggle-btn ${alertFilter === 'alerts_only' ? 'active' : ''}`}
+            onClick={() => setAlertFilter('alerts_only')}
+            style={sitesWithAlerts.length > 0 ? { color: alertFilter === 'alerts_only' ? undefined : '#b45309' } : undefined}
+          >
+            ⚠️ Active Alerts ({sitesWithAlerts.length})
+          </button>
+        </div>
       </div>
 
       {loading ? (
         <div style={{ display: 'flex', alignItems: 'center', gap: 12, color: 'var(--text-secondary)', padding: '40px 0' }}>
           <span className="loading-spinner" />
           Loading sites…
+        </div>
+      ) : filtered.length === 0 ? (
+        <div className="empty-state" style={{ padding: '60px 0' }}>
+          <div className="empty-state-title">No matching sites</div>
+          <div className="empty-state-desc">Try clearing filters or search query.</div>
         </div>
       ) : (
         <div className="sites-grid">
