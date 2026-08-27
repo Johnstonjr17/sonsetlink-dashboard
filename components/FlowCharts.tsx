@@ -166,10 +166,12 @@ export function FlowRateChart({
   data,
   unit,
   periodAverage,
+  chartType = 'area',
 }: {
   data: DailyFlowPoint[];
   unit: 'gal' | 'liters';
   periodAverage: number | null;
+  chartType?: 'area' | 'bar';
 }) {
   const rateKey = unit === 'gal' ? 'daily_avg_gpm' : 'daily_avg_lpm';
   const rateUnit = unit === 'gal' ? 'GPM' : 'LPM';
@@ -183,7 +185,7 @@ export function FlowRateChart({
             <stop offset="95%" stopColor={INDIGO} stopOpacity={0.02} />
           </linearGradient>
         </defs>
-        <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
+        <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" vertical={chartType === 'area'} />
         <XAxis dataKey="date" tickFormatter={formatDate} tick={{ fontSize: 11, fill: '#64748b' }} tickLine={false} axisLine={false} />
         <YAxis
           tickFormatter={(v) => `${Math.round(v)}`}
@@ -208,15 +210,24 @@ export function FlowRateChart({
             }}
           />
         )}
-        <Area
-          type="monotone"
-          dataKey={rateKey}
-          stroke={INDIGO}
-          strokeWidth={2.5}
-          fill="url(#rateGradient)"
-          dot={{ r: 3, fill: INDIGO }}
-          activeDot={{ r: 5, fill: INDIGO }}
-        />
+        {chartType === 'area' ? (
+          <Area
+            type="monotone"
+            dataKey={rateKey}
+            stroke={INDIGO}
+            strokeWidth={2.5}
+            fill="url(#rateGradient)"
+            dot={{ r: 3, fill: INDIGO }}
+            activeDot={{ r: 5, fill: INDIGO }}
+          />
+        ) : (
+          <Bar
+            dataKey={rateKey}
+            fill={INDIGO}
+            radius={[3, 3, 0, 0]}
+            maxBarSize={32}
+          />
+        )}
         <Brush dataKey="date" height={28} stroke="#6366f1" fill="#eef2ff" tickFormatter={formatDate} />
       </ComposedChart>
     </ResponsiveContainer>

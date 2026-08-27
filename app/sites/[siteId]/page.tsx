@@ -439,13 +439,11 @@ export default function SitePage({ params }: { params: Promise<{ siteId: string 
               <button className={`toggle-btn ${unit === 'liters' ? 'active' : ''}`} onClick={() => setUnit('liters')}>Liters</button>
             </div>
 
-            {/* Chart Style (Area/Bar) for Volume */}
-            {metricView === 'volume' && (
-              <div className="toggle-group">
-                <button className={`toggle-btn ${chartType === 'area' ? 'active' : ''}`} onClick={() => setChartType('area')}>Area</button>
-                <button className={`toggle-btn ${chartType === 'bar' ? 'active' : ''}`} onClick={() => setChartType('bar')}>Bar</button>
-              </div>
-            )}
+            {/* Chart Style (Area/Bar) - now available for BOTH Flow Rate and Volume! */}
+            <div className="toggle-group">
+              <button className={`toggle-btn ${chartType === 'area' ? 'active' : ''}`} onClick={() => setChartType('area')}>Area</button>
+              <button className={`toggle-btn ${chartType === 'bar' ? 'active' : ''}`} onClick={() => setChartType('bar')}>Bar</button>
+            </div>
           </div>
         </div>
 
@@ -462,6 +460,7 @@ export default function SitePage({ params }: { params: Promise<{ siteId: string 
                   data={visibleFlowData}
                   unit={unit}
                   periodAverage={currentPeriodAverage}
+                  chartType={chartType}
                 />
               ) : chartType === 'area' ? (
                 <FlowAreaChart data={visibleFlowData} unit={unit} />
