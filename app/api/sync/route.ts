@@ -1,7 +1,9 @@
 import { NextResponse } from 'next/server';
 import { syncAll } from '@/lib/sync';
 
-export const maxDuration = 60; // Max Vercel serverless duration
+export const dynamic = 'force-dynamic';
+export const revalidate = 0;
+export const maxDuration = 60;
 
 export async function POST() {
   try {

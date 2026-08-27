@@ -1,6 +1,9 @@
 import { NextResponse } from 'next/server';
 import { getDb, initSchema } from '@/lib/db';
 
+export const dynamic = 'force-dynamic';
+export const revalidate = 0;
+
 const IGNORED_ALERTS = "'DOSING_MISMATCH', 'DOSING_BROKEN', 'MODEM_ON'";
 
 export async function GET() {

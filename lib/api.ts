@@ -55,7 +55,10 @@ export interface NotificationRecord {
 }
 
 export async function fetchAllSites(): Promise<SiteRecord[]> {
-  const res = await fetch(`${BASE_URL}/sites`, { headers: defaultHeaders });
+  const res = await fetch(`${BASE_URL}/sites`, {
+    headers: defaultHeaders,
+    cache: 'no-store',
+  });
   if (!res.ok) throw new Error(`Failed to fetch sites: ${res.status}`);
   const json = await res.json();
   return json.data ?? [];
@@ -63,7 +66,10 @@ export async function fetchAllSites(): Promise<SiteRecord[]> {
 
 export async function fetchSiteUnitDetails(siteId: string): Promise<UnitDetails> {
   try {
-    const res = await fetch(`${BASE_URL}/sites/${siteId}/unit`, { headers: defaultHeaders });
+    const res = await fetch(`${BASE_URL}/sites/${siteId}/unit`, {
+      headers: defaultHeaders,
+      cache: 'no-store',
+    });
     if (!res.ok) return { install_date: null, ship_date: null };
     const json = await res.json();
     const attrs = json.data?.attributes ?? {};
@@ -78,7 +84,10 @@ export async function fetchSiteUnitDetails(siteId: string): Promise<UnitDetails>
 
 export async function fetchSiteNotifications(siteId: string): Promise<NotificationRecord[]> {
   try {
-    const res = await fetch(`${BASE_URL}/sites/${siteId}/notifications`, { headers: defaultHeaders });
+    const res = await fetch(`${BASE_URL}/sites/${siteId}/notifications`, {
+      headers: defaultHeaders,
+      cache: 'no-store',
+    });
     if (!res.ok) return [];
     const json = await res.json();
     return json.data ?? [];
@@ -97,7 +106,10 @@ export async function fetchSiteMessages(
   while (true) {
     const encodedDate = encodeURIComponent(sinceDate);
     const url = `${BASE_URL}/sites/${siteId}/usage3-messages?filter[timestamp-gte]=${encodedDate}&page[number]=${page}&page[size]=1000&sort=timestamp`;
-    const res = await fetch(url, { headers: defaultHeaders });
+    const res = await fetch(url, {
+      headers: defaultHeaders,
+      cache: 'no-store',
+    });
     if (!res.ok) break;
 
     const json = await res.json();
