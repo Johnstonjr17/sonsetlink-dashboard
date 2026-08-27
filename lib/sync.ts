@@ -1,5 +1,5 @@
 import { getDb, initSchema } from './db';
-import { fetchAllSites, fetchSiteUnitDetails, fetchSiteNotifications, fetchSiteMessages } from './api';
+import { fetchAllSites, fetchAllUnits, fetchAllNotifications, fetchSiteMessages } from './api';
 
 const START_DATE = '2025-01-01 00:00:00';
 
@@ -18,20 +18,17 @@ export async function syncAll(): Promise<SyncResult> {
   let sitesUpdated = 0;
   let recordsAdded = 0;
 
-  const sites = await fetchAllSites();
+  // 1. Fetch all sites and all units in 2 bulk requests
+  const [sites, unitDetailMap, allNotifs] = await Promise.all([
+    fetchAllSites(),
+    fetchAllUnits(),
+    fetchAllNotifications(),
+  ]);
 
   const activeSites = sites.filter((s) => {
     const tx = s.attributes.most_recent_tx ?? '';
     return tx >= '2025-01-01';
   });
-
-  const unitDetailMap = new Map<string, { install_date: string | null; ship_date: string | null }>();
-  await Promise.all(
-    activeSites.map(async (site) => {
-      const details = await fetchSiteUnitDetails(site.id);
-      unitDetailMap.set(site.id, details);
-    })
-  );
 
   const siteStatements = sites.map((s) => {
     const unit = unitDetailMap.get(s.id);
@@ -66,8 +63,41 @@ export async function syncAll(): Promise<SyncResult> {
     sitesUpdated = sites.length;
   }
 
-  // Concurrent fetch per site (batch size 4)
-  const batchSize = 4;
+  // 2. Sync all notifications in bulk
+  if (allNotifs.length > 0) {
+    try {
+      const notifStatements = allNotifs.map((n) => {
+        const a = n.attributes;
+        return {
+          sql: `
+            INSERT INTO notifications (id, site_id, timestamp, notification_type_name, severity, unresolved, info)
+            VALUES (?, ?, ?, ?, ?, ?, ?)
+            ON CONFLICT(id) DO UPDATE SET
+              timestamp = excluded.timestamp,
+              notification_type_name = excluded.notification_type_name,
+              severity = excluded.severity,
+              unresolved = excluded.unresolved,
+              info = excluded.info
+          `,
+          args: [
+            n.id,
+            a.site_identifier,
+            a.timestamp,
+            a.notification_type_name,
+            a.severity ?? 0,
+            a.unresolved ? 1 : 0,
+            JSON.stringify(a.info ?? []),
+          ],
+        };
+      });
+      await db.batch(notifStatements, 'write');
+    } catch (notifErr) {
+      console.error('Error batch inserting notifications:', notifErr);
+    }
+  }
+
+  // 3. Fetch telemetry messages per site (2 concurrent requests with pause to stay well under API rate limits)
+  const batchSize = 2;
   for (let i = 0; i < activeSites.length; i += batchSize) {
     const batch = activeSites.slice(i, i + batchSize);
     await Promise.all(
@@ -76,41 +106,6 @@ export async function syncAll(): Promise<SyncResult> {
           const unit = unitDetailMap.get(site.id);
           const installDate = unit?.install_date;
 
-          // 1. Sync Site Notifications/Warnings
-          try {
-            const notifs = await fetchSiteNotifications(site.id);
-            if (notifs.length > 0) {
-              const notifStatements = notifs.map((n) => {
-                const a = n.attributes;
-                return {
-                  sql: `
-                    INSERT INTO notifications (id, site_id, timestamp, notification_type_name, severity, unresolved, info)
-                    VALUES (?, ?, ?, ?, ?, ?, ?)
-                    ON CONFLICT(id) DO UPDATE SET
-                      timestamp = excluded.timestamp,
-                      notification_type_name = excluded.notification_type_name,
-                      severity = excluded.severity,
-                      unresolved = excluded.unresolved,
-                      info = excluded.info
-                  `,
-                  args: [
-                    n.id,
-                    site.id,
-                    a.timestamp,
-                    a.notification_type_name,
-                    a.severity ?? 0,
-                    a.unresolved ? 1 : 0,
-                    JSON.stringify(a.info ?? []),
-                  ],
-                };
-              });
-              await db.batch(notifStatements, 'write');
-            }
-          } catch (notifErr) {
-            console.error(`Error syncing notifications for ${site.id}:`, notifErr);
-          }
-
-          // 2. Sync Site Telemetry Messages
           const rangeRes = await db.execute({
             sql: `SELECT MIN(timestamp) as min_ts, MAX(timestamp) as max_ts FROM messages WHERE site_id = ?`,
             args: [site.id],
@@ -122,7 +117,7 @@ export async function syncAll(): Promise<SyncResult> {
 
           if (minTs && minTs <= '2025-01-05' && maxTs && maxTs.length >= 10) {
             const d = new Date(maxTs.slice(0, 10) + 'T00:00:00');
-            d.setDate(d.getDate() - 2);
+            d.setDate(d.getDate() - 3); // Overlap by 3 days to guarantee no missed records
             const yyyy = d.getFullYear();
             const mm = String(d.getMonth() + 1).padStart(2, '0');
             const dd = String(d.getDate()).padStart(2, '0');
@@ -183,6 +178,9 @@ export async function syncAll(): Promise<SyncResult> {
         }
       })
     );
+
+    // Small 150ms pause between site pairs to respect API rate limit
+    await new Promise((r) => setTimeout(r, 150));
   }
 
   return {

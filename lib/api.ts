@@ -55,7 +55,7 @@ export interface NotificationRecord {
 }
 
 export async function fetchAllSites(): Promise<SiteRecord[]> {
-  const res = await fetch(`${BASE_URL}/sites`, {
+  const res = await fetch(`${BASE_URL}/sites?page[size]=100`, {
     headers: defaultHeaders,
     cache: 'no-store',
   });
@@ -64,27 +64,33 @@ export async function fetchAllSites(): Promise<SiteRecord[]> {
   return json.data ?? [];
 }
 
-export async function fetchSiteUnitDetails(siteId: string): Promise<UnitDetails> {
+export async function fetchAllUnits(): Promise<Map<string, UnitDetails>> {
+  const unitMap = new Map<string, UnitDetails>();
   try {
-    const res = await fetch(`${BASE_URL}/sites/${siteId}/unit`, {
+    const res = await fetch(`${BASE_URL}/units?page[size]=100`, {
       headers: defaultHeaders,
       cache: 'no-store',
     });
-    if (!res.ok) return { install_date: null, ship_date: null };
-    const json = await res.json();
-    const attrs = json.data?.attributes ?? {};
-    return {
-      install_date: attrs.install_date ?? null,
-      ship_date: attrs.ship_date ?? null,
-    };
-  } catch {
-    return { install_date: null, ship_date: null };
+    if (res.ok) {
+      const json = await res.json();
+      const units: any[] = json.data ?? [];
+      for (const u of units) {
+        const siteId = u.attributes?.site_identifier || u.id;
+        unitMap.set(siteId, {
+          install_date: u.attributes?.install_date ?? null,
+          ship_date: u.attributes?.ship_date ?? null,
+        });
+      }
+    }
+  } catch (e) {
+    console.error('Error fetching units:', e);
   }
+  return unitMap;
 }
 
-export async function fetchSiteNotifications(siteId: string): Promise<NotificationRecord[]> {
+export async function fetchAllNotifications(): Promise<NotificationRecord[]> {
   try {
-    const res = await fetch(`${BASE_URL}/sites/${siteId}/notifications`, {
+    const res = await fetch(`${BASE_URL}/notifications?page[size]=100&sort=-timestamp`, {
       headers: defaultHeaders,
       cache: 'no-store',
     });
@@ -106,10 +112,20 @@ export async function fetchSiteMessages(
   while (true) {
     const encodedDate = encodeURIComponent(sinceDate);
     const url = `${BASE_URL}/sites/${siteId}/usage3-messages?filter[timestamp-gte]=${encodedDate}&page[number]=${page}&page[size]=1000&sort=timestamp`;
-    const res = await fetch(url, {
+    
+    let res = await fetch(url, {
       headers: defaultHeaders,
       cache: 'no-store',
     });
+
+    if (res.status === 429) {
+      await new Promise((r) => setTimeout(r, 2000));
+      res = await fetch(url, {
+        headers: defaultHeaders,
+        cache: 'no-store',
+      });
+    }
+
     if (!res.ok) break;
 
     const json = await res.json();
