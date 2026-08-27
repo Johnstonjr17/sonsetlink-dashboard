@@ -18,7 +18,7 @@ export async function syncAll(): Promise<SyncResult> {
   let sitesUpdated = 0;
   let recordsAdded = 0;
 
-  // 1. Fetch all sites and all units in 2 bulk requests
+  // 1. Fetch all sites, units, and notifications in 3 bulk API requests
   const [sites, unitDetailMap, allNotifs] = await Promise.all([
     fetchAllSites(),
     fetchAllUnits(),
@@ -96,91 +96,91 @@ export async function syncAll(): Promise<SyncResult> {
     }
   }
 
-  // 3. Fetch telemetry messages per site (2 concurrent requests with pause to stay well under API rate limits)
-  const batchSize = 2;
-  for (let i = 0; i < activeSites.length; i += batchSize) {
-    const batch = activeSites.slice(i, i + batchSize);
-    await Promise.all(
-      batch.map(async (site) => {
-        try {
-          const unit = unitDetailMap.get(site.id);
-          const installDate = unit?.install_date;
+  // 3. Identify only sites that actually need messages fetched (delta sync)
+  for (const site of activeSites) {
+    try {
+      const unit = unitDetailMap.get(site.id);
+      const installDate = unit?.install_date;
 
-          const rangeRes = await db.execute({
-            sql: `SELECT MIN(timestamp) as min_ts, MAX(timestamp) as max_ts FROM messages WHERE site_id = ?`,
-            args: [site.id],
-          });
-          const minTs = rangeRes.rows[0]?.min_ts as string | undefined;
-          const maxTs = rangeRes.rows[0]?.max_ts as string | undefined;
+      const rangeRes = await db.execute({
+        sql: `SELECT MIN(timestamp) as min_ts, MAX(timestamp) as max_ts FROM messages WHERE site_id = ?`,
+        args: [site.id],
+      });
+      const minTs = rangeRes.rows[0]?.min_ts as string | undefined;
+      const maxTs = rangeRes.rows[0]?.max_ts as string | undefined;
+      const latestTx = site.attributes.most_recent_tx;
 
-          let sinceDate = installDate ? `${installDate} 00:00:00` : START_DATE;
+      // If site already has messages matching or exceeding its latest reported transmission, skip
+      if (latestTx && maxTs && latestTx <= maxTs && minTs && minTs <= '2025-01-05') {
+        continue;
+      }
 
-          if (minTs && minTs <= '2025-01-05' && maxTs && maxTs.length >= 10) {
-            const d = new Date(maxTs.slice(0, 10) + 'T00:00:00');
-            d.setDate(d.getDate() - 3); // Overlap by 3 days to guarantee no missed records
-            const yyyy = d.getFullYear();
-            const mm = String(d.getMonth() + 1).padStart(2, '0');
-            const dd = String(d.getDate()).padStart(2, '0');
-            sinceDate = `${yyyy}-${mm}-${dd} 00:00:00`;
-          }
+      let sinceDate = installDate ? `${installDate} 00:00:00` : START_DATE;
 
-          const messages = await fetchSiteMessages(site.id, sinceDate);
+      if (minTs && minTs <= '2025-01-05' && maxTs && maxTs.length >= 10) {
+        const d = new Date(maxTs.slice(0, 10) + 'T00:00:00');
+        d.setDate(d.getDate() - 3); // 3-day overlap
+        const yyyy = d.getFullYear();
+        const mm = String(d.getMonth() + 1).padStart(2, '0');
+        const dd = String(d.getDate()).padStart(2, '0');
+        sinceDate = `${yyyy}-${mm}-${dd} 00:00:00`;
+      }
 
-          const validMessages = messages.filter((msg) => {
-            const ts = msg.attributes.timestamp;
-            if (!ts) return false;
-            if (installDate && ts.slice(0, 10) < installDate) {
-              return false;
-            }
-            return true;
-          });
+      const messages = await fetchSiteMessages(site.id, sinceDate);
 
-          if (validMessages.length > 0) {
-            const msgStatements = validMessages.map((msg) => {
-              const a = msg.attributes;
-              return {
-                sql: `
-                  INSERT OR IGNORE INTO messages
-                    (id, site_id, timestamp, flow_volume, flow2_volume, dosing_pump, time_in_use, battery_voltage, slot, backfill)
-                  VALUES
-                    (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-                `,
-                args: [
-                  msg.id,
-                  site.id,
-                  a.timestamp ?? null,
-                  a.flow_volume ?? 0,
-                  a.flow2_volume ?? 0,
-                  a.dosing_pump ?? null,
-                  a.time_in_use ?? 0,
-                  a.battery_voltage ?? null,
-                  a.slot ?? null,
-                  a.backfill ?? null,
-                ],
-              };
-            });
-
-            const chunkSize = 250;
-            for (let j = 0; j < msgStatements.length; j += chunkSize) {
-              const chunk = msgStatements.slice(j, j + chunkSize);
-              await db.batch(chunk, 'write');
-            }
-
-            await db.execute({
-              sql: `UPDATE sites SET last_synced_at = ? WHERE id = ?`,
-              args: [new Date().toISOString(), site.id],
-            });
-
-            recordsAdded += validMessages.length;
-          }
-        } catch (err) {
-          errors.push(`${site.id}: ${String(err)}`);
+      const validMessages = messages.filter((msg) => {
+        const ts = msg.attributes.timestamp;
+        if (!ts) return false;
+        if (installDate && ts.slice(0, 10) < installDate) {
+          return false;
         }
-      })
-    );
+        return true;
+      });
 
-    // Small 150ms pause between site pairs to respect API rate limit
-    await new Promise((r) => setTimeout(r, 150));
+      if (validMessages.length > 0) {
+        const msgStatements = validMessages.map((msg) => {
+          const a = msg.attributes;
+          return {
+            sql: `
+              INSERT OR IGNORE INTO messages
+                (id, site_id, timestamp, flow_volume, flow2_volume, dosing_pump, time_in_use, battery_voltage, slot, backfill)
+              VALUES
+                (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            `,
+            args: [
+              msg.id,
+              site.id,
+              a.timestamp ?? null,
+              a.flow_volume ?? 0,
+              a.flow2_volume ?? 0,
+              a.dosing_pump ?? null,
+              a.time_in_use ?? 0,
+              a.battery_voltage ?? null,
+              a.slot ?? null,
+              a.backfill ?? null,
+            ],
+          };
+        });
+
+        const chunkSize = 250;
+        for (let j = 0; j < msgStatements.length; j += chunkSize) {
+          const chunk = msgStatements.slice(j, j + chunkSize);
+          await db.batch(chunk, 'write');
+        }
+
+        await db.execute({
+          sql: `UPDATE sites SET last_synced_at = ? WHERE id = ?`,
+          args: [new Date().toISOString(), site.id],
+        });
+
+        recordsAdded += validMessages.length;
+      }
+
+      // Small pause between active sites
+      await new Promise((r) => setTimeout(r, 100));
+    } catch (err) {
+      errors.push(`${site.id}: ${String(err)}`);
+    }
   }
 
   return {
