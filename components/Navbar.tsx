@@ -14,11 +14,13 @@ export default function Navbar() {
       const res = await fetch('/api/sync', { method: 'POST' });
       const data = await res.json();
       if (data.success) {
-        setLastSync(`+${data.recordsAdded} records`);
+        setLastSync(`✓ Synced (+${data.recordsAdded} records)`);
         window.location.reload();
+      } else {
+        setLastSync(`Sync Error: ${data.error || 'Server error'}`);
       }
-    } catch {
-      setLastSync('Error');
+    } catch (err: any) {
+      setLastSync(`Sync Error: ${err?.message || 'Network error'}`);
     } finally {
       setSyncing(false);
     }
@@ -51,9 +53,19 @@ export default function Navbar() {
 
         <div className="navbar-actions">
           {lastSync && (
-            <span className="badge badge-teal">{lastSync}</span>
+            <span
+              className={`badge ${lastSync.startsWith('✓') ? 'badge-teal' : 'badge-amber'}`}
+              style={{ fontSize: '0.75rem' }}
+            >
+              {lastSync}
+            </span>
           )}
-          <button className="btn btn-primary btn-sm" onClick={handleSync} disabled={syncing}>
+          <button
+            className="btn btn-primary btn-sm"
+            onClick={handleSync}
+            disabled={syncing}
+            style={{ minWidth: 105 }}
+          >
             {syncing ? (
               <>
                 <span className="loading-spinner" style={{ width: 14, height: 14, borderWidth: 2 }} />
