@@ -224,6 +224,14 @@ export function FlowRateChart({
 }
 
 export function BatteryChart({ data }: { data: { date: string; avg_battery: number | null }[] }) {
+  const validVals = data.map((d) => d.avg_battery).filter((v): v is number => v !== null && v > 0);
+  const minVal = validVals.length > 0 ? Math.min(...validVals) : 6.6;
+  const maxVal = validVals.length > 0 ? Math.max(...validVals) : 6.6;
+
+  // Set realistic scale: 5.0V to 7.0V/7.5V (or at least +/- 15% span) to prevent artificial visual swings
+  const yMin = Math.max(0, Math.min(5.0, Math.floor(minVal * 0.85 * 10) / 10));
+  const yMax = Math.max(7.0, Math.ceil(maxVal * 1.15 * 10) / 10);
+
   return (
     <ResponsiveContainer width="100%" height="100%">
       <ComposedChart data={data} margin={{ top: 10, right: 10, left: 0, bottom: 0 }}>
@@ -235,13 +243,27 @@ export function BatteryChart({ data }: { data: { date: string; avg_battery: numb
         </defs>
         <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
         <XAxis dataKey="date" tickFormatter={formatDate} tick={{ fontSize: 11, fill: '#64748b' }} tickLine={false} axisLine={false} />
-        <YAxis domain={['auto', 'auto']} tickFormatter={(v) => `${v}V`} tick={{ fontSize: 11, fill: '#64748b' }} tickLine={false} axisLine={false} width={42} />
+        <YAxis
+          domain={[yMin, yMax]}
+          tickFormatter={(v) => `${Number(v).toFixed(1)}V`}
+          tick={{ fontSize: 11, fill: '#64748b' }}
+          tickLine={false}
+          axisLine={false}
+          width={45}
+        />
         <Tooltip
           contentStyle={{ borderRadius: 8, border: '1px solid #e2e8f0', fontSize: 12 }}
-          formatter={(v: any) => [`${Number(v).toFixed(2)}V`, 'Avg Battery']}
+          formatter={(v: any) => [`${Number(v).toFixed(2)}V`, 'Avg Battery Voltage']}
           labelFormatter={(d: any) => formatDate(String(d))}
         />
-        <Area type="monotone" dataKey="avg_battery" stroke={INDIGO} strokeWidth={2} fill="url(#battGradient)" dot={false} />
+        <Area
+          type="monotone"
+          dataKey="avg_battery"
+          stroke={INDIGO}
+          strokeWidth={2}
+          fill="url(#battGradient)"
+          dot={{ r: 2, fill: INDIGO }}
+        />
       </ComposedChart>
     </ResponsiveContainer>
   );
