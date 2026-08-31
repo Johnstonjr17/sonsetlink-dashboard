@@ -1,0 +1,24 @@
+name: Automatic 12-Hour Sync
+
+on:
+  schedule:
+    # Runs every 12 hours (at 00:00 and 12:00 UTC)
+    - cron: '0 0,12 * * *'
+  workflow_dispatch: # Allows you to manually trigger a sync from GitHub anytime
+
+jobs:
+  sync:
+    name: Sync SonSetLink Telemetry
+    runs-on: ubuntu-latest
+    steps:
+      - name: Trigger Sync API Endpoint
+        run: |
+          echo "Triggering SonSetLink sync at $(date)..."
+          RESPONSE=$(curl -s -X POST https://sonsetlink-dashboard.vercel.app/api/sync)
+          echo "Response from API: $RESPONSE"
+          if echo "$RESPONSE" | grep -q '"success":true'; then
+            echo "Sync completed successfully!"
+          else
+            echo "Sync encountered an issue: $RESPONSE"
+            exit 1
+          fi
