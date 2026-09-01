@@ -54,12 +54,51 @@ export interface NotificationRecord {
   attributes: NotificationAttributes;
 }
 
+async function fetchWithRetry(url: string, maxRetries = 3): Promise<Response> {
+  let attempt = 0;
+  while (attempt < maxRetries) {
+    attempt++;
+    try {
+      const res = await fetch(url, {
+        headers: defaultHeaders,
+        cache: 'no-store',
+      });
+
+      if (res.ok || (res.status >= 400 && res.status < 500 && res.status !== 429)) {
+        return res;
+      }
+
+      if (res.status === 429) {
+        const delay = attempt * 2500;
+        console.warn(`[SonSetAPI 429 RateLimit] Retrying attempt ${attempt}/${maxRetries} after ${delay}ms: ${url}`);
+        await new Promise((r) => setTimeout(r, delay));
+      } else if (res.status >= 500) {
+        const delay = attempt * 1500;
+        console.warn(`[SonSetAPI ${res.status} ServerError] Retrying attempt ${attempt}/${maxRetries} after ${delay}ms: ${url}`);
+        await new Promise((r) => setTimeout(r, delay));
+      } else {
+        return res;
+      }
+    } catch (networkErr) {
+      if (attempt >= maxRetries) throw networkErr;
+      const delay = attempt * 1500;
+      console.warn(`[SonSetAPI NetworkError] Retrying attempt ${attempt}/${maxRetries} after ${delay}ms: ${url}`);
+      await new Promise((r) => setTimeout(r, delay));
+    }
+  }
+
+  return fetch(url, { headers: defaultHeaders, cache: 'no-store' });
+}
+
 export async function fetchAllSites(): Promise<SiteRecord[]> {
-  const res = await fetch(`${BASE_URL}/sites?page[size]=100`, {
-    headers: defaultHeaders,
-    cache: 'no-store',
-  });
-  if (!res.ok) throw new Error(`Failed to fetch sites: ${res.status}`);
+  const res = await fetchWithRetry(`${BASE_URL}/sites?page[size]=100`, 3);
+  if (!res.ok) {
+    // Fallback without page[size] if 500 persists
+    const fallbackRes = await fetchWithRetry(`${BASE_URL}/sites`, 3);
+    if (!fallbackRes.ok) throw new Error(`Failed to fetch sites: ${fallbackRes.status}`);
+    const json = await fallbackRes.json();
+    return json.data ?? [];
+  }
   const json = await res.json();
   return json.data ?? [];
 }
@@ -67,10 +106,7 @@ export async function fetchAllSites(): Promise<SiteRecord[]> {
 export async function fetchAllUnits(): Promise<Map<string, UnitDetails>> {
   const unitMap = new Map<string, UnitDetails>();
   try {
-    const res = await fetch(`${BASE_URL}/units?page[size]=100`, {
-      headers: defaultHeaders,
-      cache: 'no-store',
-    });
+    const res = await fetchWithRetry(`${BASE_URL}/units?page[size]=100`, 3);
     if (res.ok) {
       const json = await res.json();
       const units: any[] = json.data ?? [];
@@ -90,10 +126,7 @@ export async function fetchAllUnits(): Promise<Map<string, UnitDetails>> {
 
 export async function fetchAllNotifications(): Promise<NotificationRecord[]> {
   try {
-    const res = await fetch(`${BASE_URL}/notifications?page[size]=100&sort=-timestamp`, {
-      headers: defaultHeaders,
-      cache: 'no-store',
-    });
+    const res = await fetchWithRetry(`${BASE_URL}/notifications?page[size]=100&sort=-timestamp`, 3);
     if (!res.ok) return [];
     const json = await res.json();
     return json.data ?? [];
@@ -112,20 +145,8 @@ export async function fetchSiteMessages(
   while (true) {
     const encodedDate = encodeURIComponent(sinceDate);
     const url = `${BASE_URL}/sites/${siteId}/usage3-messages?filter[timestamp-gte]=${encodedDate}&page[number]=${page}&page[size]=1000&sort=timestamp`;
-    
-    let res = await fetch(url, {
-      headers: defaultHeaders,
-      cache: 'no-store',
-    });
 
-    if (res.status === 429) {
-      await new Promise((r) => setTimeout(r, 2000));
-      res = await fetch(url, {
-        headers: defaultHeaders,
-        cache: 'no-store',
-      });
-    }
-
+    const res = await fetchWithRetry(url, 3);
     if (!res.ok) break;
 
     const json = await res.json();
