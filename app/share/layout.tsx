@@ -4,20 +4,13 @@ export default function ShareLayout({ children }: { children: React.ReactNode })
   return (
     <div
       style={{
-        minHeight: '100vh',
-        background: '#f8fafc',
+        maxWidth: 1100,
+        margin: '-32px auto 0',
+        padding: '16px 0 64px',
         fontFamily: 'var(--font-sans, system-ui, sans-serif)',
       }}
     >
-      <div
-        style={{
-          maxWidth: 1100,
-          margin: '0 auto',
-          padding: '32px 24px 64px',
-        }}
-      >
-        {children}
-      </div>
+      {children}
     </div>
   );
 }

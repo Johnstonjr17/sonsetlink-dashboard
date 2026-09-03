@@ -8,6 +8,11 @@ export default function Navbar() {
   const [syncing, setSyncing] = useState(false);
   const [lastSync, setLastSync] = useState<string | null>(null);
 
+  // Completely hide navbar on donor share pages
+  if (pathname?.startsWith('/share')) {
+    return null;
+  }
+
   async function handleSync() {
     setSyncing(true);
     try {
