@@ -95,6 +95,17 @@ export async function initSchema(): Promise<void> {
     CREATE INDEX IF NOT EXISTS idx_notifications_site_id ON notifications(site_id);
     CREATE INDEX IF NOT EXISTS idx_notifications_unresolved ON notifications(unresolved);
     CREATE INDEX IF NOT EXISTS idx_notifications_dismissed ON notifications(dismissed);
+
+    CREATE TABLE IF NOT EXISTS share_tokens (
+      token      TEXT PRIMARY KEY,
+      site_id    TEXT NOT NULL,
+      label      TEXT,
+      created_at TEXT NOT NULL,
+      revoked    INTEGER DEFAULT 0,
+      FOREIGN KEY (site_id) REFERENCES sites(id)
+    );
+
+    CREATE INDEX IF NOT EXISTS idx_share_tokens_site_id ON share_tokens(site_id);
   `);
 
   try {
