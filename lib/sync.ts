@@ -18,12 +18,10 @@ export async function syncAll(): Promise<SyncResult> {
   let sitesUpdated = 0;
   let recordsAdded = 0;
 
-  // 1. Fetch all sites, units, and notifications in 3 bulk API requests
-  const [sites, unitDetailMap, allNotifs] = await Promise.all([
-    fetchAllSites(),
-    fetchAllUnits(),
-    fetchAllNotifications(),
-  ]);
+  // 1. Fetch all sites, units, and notifications strictly sequentially (spaced >= 1s apart)
+  const sites = await fetchAllSites();
+  const unitDetailMap = await fetchAllUnits();
+  const allNotifs = await fetchAllNotifications();
 
   const activeSites = sites.filter((s) => {
     const tx = s.attributes.most_recent_tx ?? '';
@@ -176,8 +174,8 @@ export async function syncAll(): Promise<SyncResult> {
         recordsAdded += validMessages.length;
       }
 
-      // Small pause between active sites
-      await new Promise((r) => setTimeout(r, 100));
+      // Pause between active sites (throttledFetch additionally guarantees >=1000ms between all API calls)
+      await new Promise((r) => setTimeout(r, 1000));
     } catch (err) {
       errors.push(`${site.id}: ${String(err)}`);
     }

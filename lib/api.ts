@@ -54,7 +54,12 @@ export interface NotificationRecord {
   attributes: NotificationAttributes;
 }
 
-async function fetchWithRetry(url: string, maxRetries = 3): Promise<Response> {
+// Queue and timestamp to guarantee strictly sequential requests spaced by >= 1000ms
+let lastRequestEndTime = 0;
+const MIN_REQUEST_INTERVAL_MS = 1000;
+let requestQueue: Promise<any> = Promise.resolve();
+
+async function rawFetchWithRetry(url: string, maxRetries = 3): Promise<Response> {
   let attempt = 0;
   while (attempt < maxRetries) {
     attempt++;
@@ -90,11 +95,32 @@ async function fetchWithRetry(url: string, maxRetries = 3): Promise<Response> {
   return fetch(url, { headers: defaultHeaders, cache: 'no-store' });
 }
 
+// Strictly serializes all outgoing requests and ensures >= 1000ms delay between each
+export function throttledFetch(url: string, maxRetries = 3): Promise<Response> {
+  const execute = async (): Promise<Response> => {
+    const now = Date.now();
+    const timeSinceLast = now - lastRequestEndTime;
+    if (timeSinceLast < MIN_REQUEST_INTERVAL_MS) {
+      const waitTime = MIN_REQUEST_INTERVAL_MS - timeSinceLast;
+      await new Promise((r) => setTimeout(r, waitTime));
+    }
+    try {
+      return await rawFetchWithRetry(url, maxRetries);
+    } finally {
+      lastRequestEndTime = Date.now();
+    }
+  };
+
+  const nextPromise = requestQueue.then(execute, execute);
+  requestQueue = nextPromise;
+  return nextPromise;
+}
+
 export async function fetchAllSites(): Promise<SiteRecord[]> {
-  const res = await fetchWithRetry(`${BASE_URL}/sites?page[size]=100`, 3);
+  const res = await throttledFetch(`${BASE_URL}/sites?page[size]=100`, 3);
   if (!res.ok) {
     // Fallback without page[size] if 500 persists
-    const fallbackRes = await fetchWithRetry(`${BASE_URL}/sites`, 3);
+    const fallbackRes = await throttledFetch(`${BASE_URL}/sites`, 3);
     if (!fallbackRes.ok) throw new Error(`Failed to fetch sites: ${fallbackRes.status}`);
     const json = await fallbackRes.json();
     return json.data ?? [];
@@ -106,7 +132,7 @@ export async function fetchAllSites(): Promise<SiteRecord[]> {
 export async function fetchAllUnits(): Promise<Map<string, UnitDetails>> {
   const unitMap = new Map<string, UnitDetails>();
   try {
-    const res = await fetchWithRetry(`${BASE_URL}/units?page[size]=100`, 3);
+    const res = await throttledFetch(`${BASE_URL}/units?page[size]=100`, 3);
     if (res.ok) {
       const json = await res.json();
       const units: any[] = json.data ?? [];
@@ -126,7 +152,7 @@ export async function fetchAllUnits(): Promise<Map<string, UnitDetails>> {
 
 export async function fetchAllNotifications(): Promise<NotificationRecord[]> {
   try {
-    const res = await fetchWithRetry(`${BASE_URL}/notifications?page[size]=100&sort=-timestamp`, 3);
+    const res = await throttledFetch(`${BASE_URL}/notifications?page[size]=100&sort=-timestamp`, 3);
     if (!res.ok) return [];
     const json = await res.json();
     return json.data ?? [];
@@ -146,7 +172,7 @@ export async function fetchSiteMessages(
     const encodedDate = encodeURIComponent(sinceDate);
     const url = `${BASE_URL}/sites/${siteId}/usage3-messages?filter[timestamp-gte]=${encodedDate}&page[number]=${page}&page[size]=1000&sort=timestamp`;
 
-    const res = await fetchWithRetry(url, 3);
+    const res = await throttledFetch(url, 3);
     if (!res.ok) break;
 
     const json = await res.json();
