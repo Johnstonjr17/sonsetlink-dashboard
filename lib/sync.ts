@@ -109,13 +109,13 @@ export async function syncAll(): Promise<SyncResult> {
       const latestTx = site.attributes.most_recent_tx;
 
       // If site already has messages matching or exceeding its latest reported transmission, skip
-      if (latestTx && maxTs && latestTx <= maxTs && minTs && minTs <= '2025-01-05') {
+      if (latestTx && maxTs && latestTx <= maxTs) {
         continue;
       }
 
       let sinceDate = installDate ? `${installDate} 00:00:00` : START_DATE;
 
-      if (minTs && minTs <= '2025-01-05' && maxTs && maxTs.length >= 10) {
+      if (maxTs && maxTs.length >= 10) {
         const d = new Date(maxTs.slice(0, 10) + 'T00:00:00');
         d.setDate(d.getDate() - 3); // 3-day overlap
         const yyyy = d.getFullYear();
