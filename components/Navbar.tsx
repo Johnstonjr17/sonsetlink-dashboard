@@ -8,8 +8,8 @@ export default function Navbar() {
   const [syncing, setSyncing] = useState(false);
   const [lastSync, setLastSync] = useState<string | null>(null);
 
-  // Completely hide navbar on donor share pages
-  if (pathname?.startsWith('/share')) {
+  // Completely hide navbar on donor share pages and login page
+  if (pathname?.startsWith('/share') || pathname?.startsWith('/login')) {
     return null;
   }
 
@@ -28,6 +28,14 @@ export default function Navbar() {
       setLastSync(`Sync Error: ${err?.message || 'Network error'}`);
     } finally {
       setSyncing(false);
+    }
+  }
+
+  async function handleLogout() {
+    try {
+      await fetch('/api/login', { method: 'DELETE' });
+    } finally {
+      window.location.href = '/login';
     }
   }
 
@@ -84,6 +92,29 @@ export default function Navbar() {
                 Sync Now
               </>
             )}
+          </button>
+          <button
+            onClick={handleLogout}
+            title="Log out (Lock Dashboard)"
+            style={{
+              padding: '6px 10px',
+              borderRadius: 6,
+              border: '1px solid #e2e8f0',
+              background: '#ffffff',
+              color: '#64748b',
+              fontSize: '0.8rem',
+              fontWeight: 500,
+              cursor: 'pointer',
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: 4,
+            }}
+          >
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <rect x="3" y="11" width="18" height="11" rx="2" ry="2" />
+              <path d="M7 11V7a5 5 0 0 1 10 0v4" />
+            </svg>
+            Lock
           </button>
         </div>
       </div>
