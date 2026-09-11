@@ -62,6 +62,9 @@ export default function Navbar() {
           <Link href="/groups" className={`nav-link ${pathname === '/groups' ? 'active' : ''}`}>
             Flow Accounting
           </Link>
+          <Link href="/admin" className={`nav-link ${pathname === '/admin' ? 'active' : ''}`}>
+            Donor Links
+          </Link>
         </nav>
 
         <div className="navbar-actions">

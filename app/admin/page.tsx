@@ -104,7 +104,7 @@ export default function AdminPage() {
   };
 
   return (
-    <div style={{ maxWidth: 900, margin: '0 auto', padding: '32px 24px 64px', fontFamily: 'system-ui, sans-serif' }}>
+    <div style={{ maxWidth: 960, margin: '0 auto', padding: '0 0 64px', fontFamily: 'system-ui, sans-serif' }}>
       {/* Header */}
       <div style={{ marginBottom: 32 }}>
         <h1 style={{ margin: '0 0 6px', fontSize: '1.6rem', fontWeight: 800, color: '#0f172a' }}>
