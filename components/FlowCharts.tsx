@@ -153,7 +153,8 @@ export function FlowAreaChart({ data, unit }: FlowChartProps) {
           tick={{ fontSize: 11, fill: '#64748b' }}
           tickLine={false}
           axisLine={false}
-          interval={multiYear ? Math.floor(data.length / 8) : 'preserveStartEnd'}
+          interval={data.length > 30 ? Math.floor(data.length / 8) : 'preserveStartEnd'}
+          minTickGap={25}
         />
         <YAxis tickFormatter={(v) => formatVal(v, unit)} tick={{ fontSize: 11, fill: '#64748b' }} tickLine={false} axisLine={false} width={50} />
         <Tooltip content={<CustomFlowTooltip unit={unit} multiYear={multiYear} />} />
@@ -179,7 +180,8 @@ export function FlowBarChart({ data, unit }: FlowChartProps) {
           tick={{ fontSize: 11, fill: '#64748b' }}
           tickLine={false}
           axisLine={false}
-          interval={multiYear ? Math.floor(data.length / 8) : 'preserveStartEnd'}
+          interval={data.length > 30 ? Math.floor(data.length / 8) : 'preserveStartEnd'}
+          minTickGap={25}
         />
         <YAxis tickFormatter={(v) => formatVal(v, unit)} tick={{ fontSize: 11, fill: '#64748b' }} tickLine={false} axisLine={false} width={50} />
         <Tooltip content={<CustomFlowTooltip unit={unit} multiYear={multiYear} />} />
@@ -222,7 +224,8 @@ export function FlowRateChart({
           tick={{ fontSize: 11, fill: '#64748b' }}
           tickLine={false}
           axisLine={false}
-          interval={multiYear ? Math.floor(data.length / 8) : 'preserveStartEnd'}
+          interval={data.length > 30 ? Math.floor(data.length / 8) : 'preserveStartEnd'}
+          minTickGap={25}
         />
         <YAxis
           tickFormatter={(v) => `${Math.round(v)}`}
@@ -254,7 +257,7 @@ export function FlowRateChart({
             stroke={INDIGO}
             strokeWidth={2.5}
             fill="url(#rateGradient)"
-            dot={{ r: 3, fill: INDIGO }}
+            dot={data.length <= 30 ? { r: 3, fill: INDIGO } : false}
             activeDot={{ r: 5, fill: INDIGO }}
           />
         ) : (

@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getDb, initSchema } from '@/lib/db';
+import { fillDailyGaps } from '@/lib/formatDate';
 
 export const dynamic = 'force-dynamic';
 export const revalidate = 0;
@@ -140,7 +141,7 @@ export async function GET(
 
     return NextResponse.json({
       site,
-      dailyFlow: dailyFlowRes.rows,
+      dailyFlow: fillDailyGaps(dailyFlowRes.rows),
       recentMessages: recentMessagesRes.rows,
       batteryTrend: [...batteryTrendRes.rows].reverse(),
       notifications,

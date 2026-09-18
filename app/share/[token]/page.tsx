@@ -115,7 +115,7 @@ export default function SharePage({ params }: { params: Promise<{ token: string 
   const totalLiters = totalGal * 3.78541;
 
   const activeDaysWithFlow = visibleFlowData.filter(
-    (r) => (r.total_mins ?? 0) > 0 && (r.total_gal ?? 0) > 0
+    (r) => (r.total_gal ?? 0) > 0
   );
   const totalActiveGal = activeDaysWithFlow.reduce((s, r) => s + (r.total_gal ?? 0), 0);
   const totalActiveMins = activeDaysWithFlow.reduce((s, r) => s + (r.total_mins ?? 0), 0);

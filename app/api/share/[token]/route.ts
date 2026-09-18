@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getDb, initSchema } from '@/lib/db';
+import { fillDailyGaps } from '@/lib/formatDate';
 
 export const dynamic = 'force-dynamic';
 export const revalidate = 0;
@@ -67,7 +68,6 @@ export async function GET(
           COUNT(*) AS transmissions
         FROM messages
         WHERE site_id = ?
-          AND timestamp >= '2025-01-01'
           AND (? IS NULL OR substr(timestamp, 1, 10) >= ?)
         GROUP BY substr(timestamp, 1, 10)
         ORDER BY date ASC
@@ -127,7 +127,7 @@ export async function GET(
     return NextResponse.json({
       site,
       shareLabel: tokenRow.label,
-      dailyFlow: dailyFlowRes.rows,
+      dailyFlow: fillDailyGaps(dailyFlowRes.rows),
       recentMessages: recentMessagesRes.rows,
       batteryTrend: [...batteryTrendRes.rows].reverse(),
       notifications: notifsRes.rows,
