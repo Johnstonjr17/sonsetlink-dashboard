@@ -26,10 +26,10 @@ interface FlowChartProps {
 const TEAL = '#14b8a6';
 const INDIGO = '#6366f1';
 
-function formatDate(d: string, includeYear = false) {
+function formatDate(d: string, includeYear: boolean | number = false) {
   if (!d) return '';
   const dt = new Date(d + 'T00:00:00');
-  if (includeYear) {
+  if (includeYear === true) {
     return dt.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
   }
   return dt.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
@@ -290,7 +290,7 @@ export function BatteryChart({ data }: { data: { date: string; avg_battery: numb
           </linearGradient>
         </defs>
         <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
-        <XAxis dataKey="date" tickFormatter={formatDate} tick={{ fontSize: 11, fill: '#64748b' }} tickLine={false} axisLine={false} />
+        <XAxis dataKey="date" tickFormatter={(d: string) => formatDate(d)} tick={{ fontSize: 11, fill: '#64748b' }} tickLine={false} axisLine={false} />
         <YAxis
           domain={[yMin, yMax]}
           tickFormatter={(v) => `${Number(v).toFixed(1)}V`}
