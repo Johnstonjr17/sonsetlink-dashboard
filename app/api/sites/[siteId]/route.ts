@@ -50,7 +50,6 @@ export async function GET(
           COUNT(*) AS transmissions
         FROM messages
         WHERE site_id = ?
-          AND timestamp >= '2025-01-01'
           AND (? IS NULL OR substr(timestamp, 1, 10) >= ?)
         GROUP BY substr(timestamp, 1, 10)
         ORDER BY date ASC
