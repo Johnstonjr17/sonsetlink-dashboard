@@ -172,7 +172,7 @@ export default function SitePage({ params }: { params: Promise<{ siteId: string 
 
   // Average Operating Flow Rate calculation (EXCLUDING zero flow rates)
   const activeDaysWithFlow = visibleFlowData.filter(
-    (r) => (r.total_mins ?? 0) > 0 && (r.total_gal ?? 0) > 0
+    (r) => (r.total_gal ?? 0) > 0
   );
   const totalActiveGal = activeDaysWithFlow.reduce((s, r) => s + (r.total_gal ?? 0), 0);
   const totalActiveMins = activeDaysWithFlow.reduce((s, r) => s + (r.total_mins ?? 0), 0);
