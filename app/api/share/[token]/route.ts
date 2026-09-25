@@ -8,6 +8,37 @@ export const revalidate = 0;
 const GALLONS_TO_LITERS = 3.78541;
 const IGNORED_ALERTS = "'DOSING_MISMATCH', 'DOSING_BROKEN', 'MODEM_ON'";
 
+/**
+ * Compute the UTC offset for a site's timezone as a SQLite datetime() modifier string.
+ * e.g. America/Tijuana (UTC-7 PDT) → '-420 minutes'
+ *      Asia/Kolkata   (UTC+5:30)   → '+330 minutes'
+ */
+function getTzModifier(tz: string | null | undefined): string {
+  if (!tz) return '+0 minutes';
+  try {
+    const now = new Date();
+    const parts = new Intl.DateTimeFormat('en-US', {
+      timeZone: tz,
+      year: 'numeric',
+      month: 'numeric',
+      day: 'numeric',
+      hour: 'numeric',
+      minute: 'numeric',
+      second: 'numeric',
+      hour12: false,
+    }).formatToParts(now);
+    const get = (type: string) => parseInt(parts.find((p) => p.type === type)?.value ?? '0');
+    const localAsIfUtc = Date.UTC(
+      get('year'), get('month') - 1, get('day'),
+      get('hour') % 24, get('minute'), get('second')
+    );
+    const offsetMinutes = Math.round((localAsIfUtc - now.getTime()) / 60000);
+    return `${offsetMinutes >= 0 ? '+' : ''}${offsetMinutes} minutes`;
+  } catch {
+    return '+0 minutes';
+  }
+}
+
 // GET /api/share/[token] — validate token and return full site data
 export async function GET(
   _req: NextRequest,
@@ -18,7 +49,6 @@ export async function GET(
     const { token } = await params;
     const db = getDb();
 
-    // Look up token
     const tokenRes = await db.execute({
       sql: `SELECT token, site_id, label, created_at, revoked FROM share_tokens WHERE token = ?`,
       args: [token],
@@ -35,7 +65,6 @@ export async function GET(
 
     const siteId = String(tokenRow.site_id);
 
-    // Fetch site record
     const siteRes = await db.execute({ sql: `SELECT * FROM sites WHERE id = ?`, args: [siteId] });
     const site = siteRes.rows[0];
     if (!site) {
@@ -43,12 +72,13 @@ export async function GET(
     }
 
     const installDate = site.install_date as string | undefined;
+    const tzMod = getTzModifier(site.timezone as string | null);
 
-    // Daily flow aggregates
+    // Daily flow aggregates — grouped by local site date
     const dailyFlowRes = await db.execute({
       sql: `
         SELECT
-          substr(timestamp, 1, 10) AS date,
+          substr(datetime(timestamp, ?), 1, 10) AS date,
           SUM(COALESCE(flow_volume, 0) + COALESCE(flow2_volume, 0)) AS total_gal,
           SUM(COALESCE(flow_volume, 0) + COALESCE(flow2_volume, 0)) * ${GALLONS_TO_LITERS} AS total_liters,
           SUM(COALESCE(flow_volume, 0)) AS flow1_gal,
@@ -68,14 +98,14 @@ export async function GET(
           COUNT(*) AS transmissions
         FROM messages
         WHERE site_id = ?
-          AND (? IS NULL OR substr(timestamp, 1, 10) >= ?)
-        GROUP BY substr(timestamp, 1, 10)
+          AND (? IS NULL OR substr(datetime(timestamp, ?), 1, 10) >= ?)
+        GROUP BY substr(datetime(timestamp, ?), 1, 10)
         ORDER BY date ASC
       `,
-      args: [siteId, installDate ?? null, installDate ?? null],
+      args: [tzMod, siteId, installDate ?? null, tzMod, installDate ?? null, tzMod],
     });
 
-    // Recent transmissions
+    // Recent transmissions (raw UTC timestamps — displayed by formatSiteTime in frontend)
     const recentMessagesRes = await db.execute({
       sql: `
         SELECT
@@ -98,22 +128,23 @@ export async function GET(
       args: [siteId, installDate ?? null, installDate ?? null],
     });
 
-    // Battery trend (last 30 days)
+    // Battery trend (last 30 local days)
     const batteryTrendRes = await db.execute({
       sql: `
-        SELECT substr(timestamp, 1, 10) AS date, AVG(NULLIF(battery_voltage, 0)) AS avg_battery
+        SELECT
+          substr(datetime(timestamp, ?), 1, 10) AS date,
+          AVG(NULLIF(battery_voltage, 0)) AS avg_battery
         FROM messages
         WHERE site_id = ?
           AND battery_voltage IS NOT NULL
-          AND (? IS NULL OR substr(timestamp, 1, 10) >= ?)
-        GROUP BY substr(timestamp, 1, 10)
+          AND (? IS NULL OR substr(datetime(timestamp, ?), 1, 10) >= ?)
+        GROUP BY substr(datetime(timestamp, ?), 1, 10)
         ORDER BY date DESC
         LIMIT 30
       `,
-      args: [siteId, installDate ?? null, installDate ?? null],
+      args: [tzMod, siteId, installDate ?? null, tzMod, installDate ?? null, tzMod],
     });
 
-    // Active notifications
     const notifsRes = await db.execute({
       sql: `
         SELECT id, site_id, timestamp, notification_type_name, severity, unresolved, info, dismissed, dismissed_at
