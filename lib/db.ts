@@ -51,6 +51,7 @@ export async function initSchema(): Promise<void> {
       id TEXT PRIMARY KEY,
       site_id TEXT NOT NULL,
       timestamp TEXT NOT NULL,
+      original_timestamp TEXT,
       flow_volume REAL DEFAULT 0,
       flow2_volume REAL DEFAULT 0,
       dosing_pump REAL,
@@ -63,6 +64,7 @@ export async function initSchema(): Promise<void> {
 
     CREATE INDEX IF NOT EXISTS idx_messages_site_id ON messages(site_id);
     CREATE INDEX IF NOT EXISTS idx_messages_timestamp ON messages(timestamp);
+    CREATE INDEX IF NOT EXISTS idx_messages_orig_ts ON messages(original_timestamp);
     CREATE INDEX IF NOT EXISTS idx_messages_site_ts ON messages(site_id, timestamp);
 
     CREATE TABLE IF NOT EXISTS groups (
@@ -112,6 +114,8 @@ export async function initSchema(): Promise<void> {
     await db.execute(`ALTER TABLE sites ADD COLUMN install_date TEXT`).catch(() => {});
     await db.execute(`ALTER TABLE sites ADD COLUMN ship_date TEXT`).catch(() => {});
     await db.execute(`ALTER TABLE sites ADD COLUMN timezone TEXT`).catch(() => {});
+    await db.execute(`ALTER TABLE messages ADD COLUMN original_timestamp TEXT`).catch(() => {});
+    await db.execute(`CREATE INDEX IF NOT EXISTS idx_messages_orig_ts ON messages(original_timestamp)`).catch(() => {});
   } catch {}
 
   try {

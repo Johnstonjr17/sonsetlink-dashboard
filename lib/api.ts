@@ -21,6 +21,7 @@ export interface SiteRecord {
 
 export interface MessageAttributes {
   timestamp: string;
+  original_timestamp?: string | null;
   flow_volume: number | null;
   flow2_volume: number | null;
   dosing_pump: number | null;

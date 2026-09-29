@@ -10,7 +10,13 @@ export interface SyncResult {
   errors: string[];
 }
 
-export async function syncAll(): Promise<SyncResult> {
+export interface SyncOptions {
+  forceFullSync?: boolean;
+  siteId?: string;
+}
+
+export async function syncAll(options: SyncOptions = {}): Promise<SyncResult> {
+  const { forceFullSync = false, siteId: targetSiteId } = options;
   const start = Date.now();
   await initSchema();
   const db = getDb();
@@ -21,14 +27,17 @@ export async function syncAll(): Promise<SyncResult> {
   // 1. Fetch all sites, units, and notifications strictly sequentially (spaced >= 1s apart)
   const sites = await fetchAllSites();
   const unitDetailMap = await fetchAllUnits();
-  const allNotifs = await fetchAllNotifications();
+  const allNotifs = targetSiteId ? [] : await fetchAllNotifications();
 
-  const activeSites = sites.filter((s) => {
+  const targetSites = sites.filter((s) => {
+    if (targetSiteId) {
+      return s.id === targetSiteId;
+    }
     const tx = s.attributes.most_recent_tx ?? '';
     return tx >= '2025-01-01';
   });
 
-  const siteStatements = sites.map((s) => {
+  const siteStatements = (targetSiteId ? targetSites : sites).map((s) => {
     const unit = unitDetailMap.get(s.id);
     return {
       sql: `
@@ -58,10 +67,10 @@ export async function syncAll(): Promise<SyncResult> {
 
   if (siteStatements.length > 0) {
     await db.batch(siteStatements, 'write');
-    sitesUpdated = sites.length;
+    sitesUpdated = siteStatements.length;
   }
 
-  // 2. Sync all notifications in bulk
+  // 2. Sync all notifications in bulk (only during global sync)
   if (allNotifs.length > 0) {
     try {
       const notifStatements = allNotifs.map((n) => {
@@ -94,8 +103,8 @@ export async function syncAll(): Promise<SyncResult> {
     }
   }
 
-  // 3. Identify only sites that actually need messages fetched (delta sync)
-  for (const site of activeSites) {
+  // 3. Fetch usage messages
+  for (const site of targetSites) {
     try {
       const unit = unitDetailMap.get(site.id);
       const installDate = unit?.install_date;
@@ -104,18 +113,19 @@ export async function syncAll(): Promise<SyncResult> {
         sql: `SELECT MIN(timestamp) as min_ts, MAX(timestamp) as max_ts FROM messages WHERE site_id = ?`,
         args: [site.id],
       });
-      const minTs = rangeRes.rows[0]?.min_ts as string | undefined;
       const maxTs = rangeRes.rows[0]?.max_ts as string | undefined;
       const latestTx = site.attributes.most_recent_tx;
 
-      // If site already has messages matching or exceeding its latest reported transmission, skip
-      if (latestTx && maxTs && latestTx <= maxTs) {
-        continue;
+      // Delta sync check: if not forcing full sync, skip up-to-date sites
+      if (!forceFullSync) {
+        if (latestTx && maxTs && latestTx <= maxTs) {
+          continue;
+        }
       }
 
       let sinceDate = installDate ? `${installDate} 00:00:00` : START_DATE;
 
-      if (maxTs && maxTs.length >= 10) {
+      if (!forceFullSync && maxTs && maxTs.length >= 10) {
         const d = new Date(maxTs.slice(0, 10) + 'T00:00:00');
         d.setDate(d.getDate() - 3); // 3-day overlap
         const yyyy = d.getFullYear();
@@ -140,15 +150,26 @@ export async function syncAll(): Promise<SyncResult> {
           const a = msg.attributes;
           return {
             sql: `
-              INSERT OR IGNORE INTO messages
-                (id, site_id, timestamp, flow_volume, flow2_volume, dosing_pump, time_in_use, battery_voltage, slot, backfill)
+              INSERT INTO messages
+                (id, site_id, timestamp, original_timestamp, flow_volume, flow2_volume, dosing_pump, time_in_use, battery_voltage, slot, backfill)
               VALUES
-                (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+              ON CONFLICT(id) DO UPDATE SET
+                timestamp = excluded.timestamp,
+                original_timestamp = COALESCE(excluded.original_timestamp, messages.original_timestamp),
+                flow_volume = excluded.flow_volume,
+                flow2_volume = excluded.flow2_volume,
+                dosing_pump = excluded.dosing_pump,
+                time_in_use = excluded.time_in_use,
+                battery_voltage = excluded.battery_voltage,
+                slot = excluded.slot,
+                backfill = excluded.backfill
             `,
             args: [
               msg.id,
               site.id,
               a.timestamp ?? null,
+              a.original_timestamp ?? null,
               a.flow_volume ?? 0,
               a.flow2_volume ?? 0,
               a.dosing_pump ?? null,
