@@ -23,20 +23,25 @@ async function main() {
   console.log(`   Target: ${BASE_URL}`);
   console.log(`======================================================\n`);
 
+  const SONSET_TOKEN = 'NhIZQ4PpIow6DWvj9w6Q9VBw9QLz8H6B7UOZ3gwyec1ee111';
   let sitesToSync = [];
 
   if (targetSiteId) {
     console.log(`Targeting single site: ${targetSiteId}`);
     sitesToSync = [{ id: targetSiteId, name: targetSiteId }];
   } else {
-    console.log(`Fetching active site list from ${BASE_URL}/api/sites ...`);
-    const sitesRes = await fetch(`${BASE_URL}/api/sites`);
+    console.log(`Fetching active site list from SonSetLink API ...`);
+    const sitesRes = await fetch('https://app.sonsetlink.org/api/v1/sites?page[size]=100', {
+      headers: { Authorization: `Bearer ${SONSET_TOKEN}`, Accept: 'application/vnd.api+json' }
+    });
     if (!sitesRes.ok) {
       throw new Error(`Failed to fetch sites list: ${sitesRes.status} ${sitesRes.statusText}`);
     }
     const sitesData = await sitesRes.json();
-    const allSites = sitesData.sites || [];
-    sitesToSync = allSites.filter((s) => (s.most_recent_tx || '') >= '2025-01-01');
+    const allSites = sitesData.data || [];
+    sitesToSync = allSites
+      .filter((s) => (s.attributes?.most_recent_tx || '') >= '2025-01-01')
+      .map((s) => ({ id: s.id, name: s.attributes?.name || s.id }));
     console.log(`Found ${sitesToSync.length} active sites to re-fetch.\n`);
   }
 
