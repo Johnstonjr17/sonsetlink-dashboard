@@ -34,6 +34,15 @@ export function getDb(): Client {
 
 export async function initSchema(): Promise<void> {
   const db = getDb();
+
+  // Safely ensure columns exist before executing schema statements/indexes
+  try {
+    await db.execute(`ALTER TABLE sites ADD COLUMN install_date TEXT`).catch(() => {});
+    await db.execute(`ALTER TABLE sites ADD COLUMN ship_date TEXT`).catch(() => {});
+    await db.execute(`ALTER TABLE sites ADD COLUMN timezone TEXT`).catch(() => {});
+    await db.execute(`ALTER TABLE messages ADD COLUMN original_timestamp TEXT`).catch(() => {});
+  } catch {}
+
   await db.executeMultiple(`
     CREATE TABLE IF NOT EXISTS sites (
       id TEXT PRIMARY KEY,
@@ -64,7 +73,6 @@ export async function initSchema(): Promise<void> {
 
     CREATE INDEX IF NOT EXISTS idx_messages_site_id ON messages(site_id);
     CREATE INDEX IF NOT EXISTS idx_messages_timestamp ON messages(timestamp);
-    CREATE INDEX IF NOT EXISTS idx_messages_orig_ts ON messages(original_timestamp);
     CREATE INDEX IF NOT EXISTS idx_messages_site_ts ON messages(site_id, timestamp);
 
     CREATE TABLE IF NOT EXISTS groups (
@@ -111,10 +119,6 @@ export async function initSchema(): Promise<void> {
   `);
 
   try {
-    await db.execute(`ALTER TABLE sites ADD COLUMN install_date TEXT`).catch(() => {});
-    await db.execute(`ALTER TABLE sites ADD COLUMN ship_date TEXT`).catch(() => {});
-    await db.execute(`ALTER TABLE sites ADD COLUMN timezone TEXT`).catch(() => {});
-    await db.execute(`ALTER TABLE messages ADD COLUMN original_timestamp TEXT`).catch(() => {});
     await db.execute(`CREATE INDEX IF NOT EXISTS idx_messages_orig_ts ON messages(original_timestamp)`).catch(() => {});
   } catch {}
 
