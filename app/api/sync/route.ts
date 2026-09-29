@@ -18,22 +18,6 @@ export async function POST(req: NextRequest) {
 
 export async function GET(req: NextRequest) {
   try {
-    if (req.nextUrl.searchParams.get('debug') === 'true') {
-      const { getDb } = await import('@/lib/db');
-      const db = getDb();
-      let alterError = null;
-      try {
-        await db.execute(`ALTER TABLE messages ADD COLUMN original_timestamp TEXT`);
-      } catch (e) {
-        alterError = String(e);
-      }
-      const cols = await db.execute(`PRAGMA table_info(messages)`);
-      return NextResponse.json({
-        build: 'debug-check-columns',
-        alterError,
-        columns: cols.rows.map((r: any) => r.name),
-      });
-    }
 
     const siteId = req.nextUrl.searchParams.get('site') ?? undefined;
     const forceFullSync = req.nextUrl.searchParams.get('full') === 'true';
