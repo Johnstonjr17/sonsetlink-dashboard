@@ -1,5 +1,6 @@
 'use client';
 import { useEffect, useState } from 'react';
+import Link from 'next/link';
 
 interface CumulativeSiteRecord {
   site_id: string;
@@ -416,8 +417,16 @@ export default function CumulativePage() {
 
                   return (
                     <tr key={s.site_id}>
-                      <td><span className="badge badge-teal">{s.site_id}</span></td>
-                      <td style={{ fontWeight: 600 }}>{s.name}</td>
+                      <td>
+                        <Link href={`/sites/${s.site_id}`} style={{ textDecoration: 'none' }}>
+                          <span className="badge badge-teal" style={{ cursor: 'pointer' }}>{s.site_id}</span>
+                        </Link>
+                      </td>
+                      <td style={{ fontWeight: 600 }}>
+                        <Link href={`/sites/${s.site_id}`} className="table-site-link">
+                          {s.name}
+                        </Link>
+                      </td>
                       <td>{s.location}</td>
                       <td>
                         {s.install_date !== 'N/A' ? (

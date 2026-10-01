@@ -443,6 +443,17 @@ input { font-family: inherit; }
 .data-table tbody tr:hover { background: var(--gray-50); }
 .data-table tbody tr:last-child td { border-bottom: none; }
 
+.table-site-link {
+  color: var(--teal-700);
+  font-weight: 600;
+  text-decoration: none;
+  transition: color 0.15s ease, text-decoration 0.15s ease;
+}
+.table-site-link:hover {
+  color: var(--teal-900);
+  text-decoration: underline;
+}
+
 /* =====================================================
    LOADING / EMPTY STATES
    ===================================================== */
