@@ -8,12 +8,21 @@ interface CumulativeSiteRecord {
   format_name: string;
   install_date: string;
   ship_date: string;
+  discrepancy_flow1_gal: number;
+  discrepancy_flow2_gal: number;
+  discrepancy_date: string | null;
   flow1_gal: number;
   flow1_liters: number;
   flow2_gal: number;
   flow2_liters: number;
   total_gal: number;
   total_liters: number;
+  adjusted_flow1_gal: number;
+  adjusted_flow1_liters: number;
+  adjusted_flow2_gal: number;
+  adjusted_flow2_liters: number;
+  adjusted_total_gal: number;
+  adjusted_total_liters: number;
   record_count: number;
   first_tx: string;
   last_tx: string;
@@ -29,6 +38,12 @@ interface CumulativeApiResponse {
   overallFlow2Liters: number;
   overallGal: number;
   overallLiters: number;
+  overallAdjustedFlow1Gal: number;
+  overallAdjustedFlow1Liters: number;
+  overallAdjustedFlow2Gal: number;
+  overallAdjustedFlow2Liters: number;
+  overallAdjustedGal: number;
+  overallAdjustedLiters: number;
   sites: CumulativeSiteRecord[];
   error?: string;
 }
@@ -89,9 +104,11 @@ export default function CumulativePage() {
       acc.flow2_liters += s.flow2_liters || 0;
       acc.total_gal += s.total_gal || 0;
       acc.total_liters += s.total_liters || 0;
+      acc.adjusted_total_gal += s.adjusted_total_gal || 0;
+      acc.adjusted_total_liters += s.adjusted_total_liters || 0;
       return acc;
     },
-    { flow1_gal: 0, flow1_liters: 0, flow2_gal: 0, flow2_liters: 0, total_gal: 0, total_liters: 0 }
+    { flow1_gal: 0, flow1_liters: 0, flow2_gal: 0, flow2_liters: 0, total_gal: 0, total_liters: 0, adjusted_total_gal: 0, adjusted_total_liters: 0 }
   );
 
   function exportCsv() {
@@ -100,9 +117,9 @@ export default function CumulativePage() {
     const unitLabel = unit === 'gal' ? 'Gallons' : 'Liters';
     const f1Key = unit === 'gal' ? 'flow1_gal' : 'flow1_liters';
     const f2Key = unit === 'gal' ? 'flow2_gal' : 'flow2_liters';
-    const totalKey = unit === 'gal' ? 'total_gal' : 'total_liters';
+    const adjTotalKey = unit === 'gal' ? 'adjusted_total_gal' : 'adjusted_total_liters';
 
-    const systemTotal = unit === 'gal' ? data.overallGal : data.overallLiters;
+    const systemTotal = unit === 'gal' ? data.overallAdjustedGal : data.overallAdjustedLiters;
 
     const headers = [
       'Site ID',
@@ -116,15 +133,18 @@ export default function CumulativePage() {
       'Last Telemetry Date in Window',
       `Flow 1 Volume (${unitLabel})`,
       `Flow 2 Volume (${unitLabel})`,
-      `Combined Total Volume (${unitLabel})`,
-      '% of System Total Volume',
+      `Flow 1 Correction (${unitLabel})`,
+      `Flow 2 Correction (${unitLabel})`,
+      'Discrepancy Date',
+      `Adjusted Total Volume (${unitLabel})`,
+      '% of System Adjusted Total',
     ];
 
     const rows = filteredSites.map((s) => {
       const f1 = s[f1Key];
       const f2 = s[f2Key];
-      const tot = s[totalKey];
-      const pct = systemTotal > 0 ? ((tot / systemTotal) * 100).toFixed(1) + '%' : '0%';
+      const adjTot = s[adjTotalKey];
+      const pct = systemTotal > 0 ? ((adjTot / systemTotal) * 100).toFixed(1) + '%' : '0%';
       return [
         s.site_id,
         s.name,
@@ -137,7 +157,10 @@ export default function CumulativePage() {
         s.last_tx,
         f1.toString(),
         f2.toString(),
-        tot.toString(),
+        s.discrepancy_flow1_gal.toString(),
+        s.discrepancy_flow2_gal.toString(),
+        s.discrepancy_date ?? '',
+        adjTot.toString(),
         pct,
       ];
     });
@@ -145,8 +168,8 @@ export default function CumulativePage() {
     const isFiltered = Boolean(search.trim());
     const totalF1 = unit === 'gal' ? filteredTotals.flow1_gal : filteredTotals.flow1_liters;
     const totalF2 = unit === 'gal' ? filteredTotals.flow2_gal : filteredTotals.flow2_liters;
-    const totalCombined = unit === 'gal' ? filteredTotals.total_gal : filteredTotals.total_liters;
-    const totalPct = systemTotal > 0 ? ((totalCombined / systemTotal) * 100).toFixed(1) + '%' : '100%';
+    const totalAdj = unit === 'gal' ? filteredTotals.adjusted_total_gal : filteredTotals.adjusted_total_liters;
+    const totalPct = systemTotal > 0 ? ((totalAdj / systemTotal) * 100).toFixed(1) + '%' : '100%';
 
     // Add totals row
     rows.push([
@@ -161,7 +184,10 @@ export default function CumulativePage() {
       'N/A',
       Math.round(totalF1).toString(),
       Math.round(totalF2).toString(),
-      Math.round(totalCombined).toString(),
+      '',
+      '',
+      '',
+      Math.round(totalAdj).toString(),
       totalPct,
     ]);
 
@@ -364,7 +390,7 @@ export default function CumulativePage() {
                   <th>Last TX in Window</th>
                   <th style={{ textAlign: 'right' }}>Flow 1 ({unit === 'gal' ? 'Gal' : 'L'})</th>
                   <th style={{ textAlign: 'right' }}>Flow 2 ({unit === 'gal' ? 'Gal' : 'L'})</th>
-                  <th style={{ textAlign: 'right' }}>Combined Total ({unit === 'gal' ? 'Gal' : 'L'})</th>
+                  <th style={{ textAlign: 'right', color: '#0d9488' }}>Adjusted Total ({unit === 'gal' ? 'Gal' : 'L'})</th>
                   <th style={{ textAlign: 'right' }}>% of System Total</th>
                 </tr>
               </thead>
@@ -372,10 +398,11 @@ export default function CumulativePage() {
                 {filteredSites.map((s) => {
                   const f1 = unit === 'gal' ? s.flow1_gal : s.flow1_liters;
                   const f2 = unit === 'gal' ? s.flow2_gal : s.flow2_liters;
-                  const tot = unit === 'gal' ? s.total_gal : s.total_liters;
+                  const adjTot = unit === 'gal' ? s.adjusted_total_gal : s.adjusted_total_liters;
+                  const hasDisc = s.discrepancy_flow1_gal !== 0 || s.discrepancy_flow2_gal !== 0;
 
-                  const overallTotal = unit === 'gal' ? data!.overallGal : data!.overallLiters;
-                  const pct = overallTotal > 0 ? ((tot / overallTotal) * 100).toFixed(1) : '0';
+                  const overallAdjTotal = unit === 'gal' ? data!.overallAdjustedGal : data!.overallAdjustedLiters;
+                  const pct = overallAdjTotal > 0 ? ((adjTot / overallAdjTotal) * 100).toFixed(1) : '0';
 
                   return (
                     <tr key={s.site_id}>
@@ -397,8 +424,16 @@ export default function CumulativePage() {
                       <td style={{ textAlign: 'right', fontWeight: 600, color: '#f59e0b' }}>
                         {f2.toLocaleString()}
                       </td>
-                      <td style={{ textAlign: 'right', fontWeight: 700, color: 'var(--teal-700)', fontSize: '0.9rem' }}>
-                        {tot.toLocaleString()}
+                      <td style={{ textAlign: 'right', fontWeight: 700, color: '#0d9488', fontSize: '0.9rem' }}>
+                        {adjTot.toLocaleString()}
+                        {hasDisc && (
+                          <span
+                            title={`Correction: Flow 1 +${s.discrepancy_flow1_gal.toLocaleString()}, Flow 2 +${s.discrepancy_flow2_gal.toLocaleString()}${s.discrepancy_date ? ` (as of ${s.discrepancy_date})` : ''}`}
+                            style={{ marginLeft: 6, fontSize: '0.68rem', color: '#0d9488', cursor: 'help', opacity: 0.8 }}
+                          >
+                            ✱
+                          </span>
+                        )}
                       </td>
                       <td style={{ textAlign: 'right', fontWeight: 600 }}>
                         <span className="badge badge-default" style={{ fontSize: '0.78rem' }}>{pct}%</span>
@@ -430,12 +465,12 @@ export default function CumulativePage() {
                   <td style={{ textAlign: 'right', color: '#f59e0b' }}>
                     {Math.round(unit === 'gal' ? filteredTotals.flow2_gal : filteredTotals.flow2_liters).toLocaleString()}
                   </td>
-                  <td style={{ textAlign: 'right', color: 'var(--teal-800)', fontSize: '0.95rem' }}>
-                    {Math.round(unit === 'gal' ? filteredTotals.total_gal : filteredTotals.total_liters).toLocaleString()}
+                  <td style={{ textAlign: 'right', color: '#0d9488', fontSize: '0.95rem' }}>
+                    {Math.round(unit === 'gal' ? filteredTotals.adjusted_total_gal : filteredTotals.adjusted_total_liters).toLocaleString()}
                   </td>
                   <td style={{ textAlign: 'right', color: 'var(--teal-800)' }}>
-                    {data && (unit === 'gal' ? data.overallGal : data.overallLiters) > 0
-                      ? `${(((unit === 'gal' ? filteredTotals.total_gal : filteredTotals.total_liters) / (unit === 'gal' ? data.overallGal : data.overallLiters)) * 100).toFixed(1)}%`
+                    {data && (unit === 'gal' ? data.overallAdjustedGal : data.overallAdjustedLiters) > 0
+                      ? `${(((unit === 'gal' ? filteredTotals.adjusted_total_gal : filteredTotals.adjusted_total_liters) / (unit === 'gal' ? data.overallAdjustedGal : data.overallAdjustedLiters)) * 100).toFixed(1)}%`
                       : '100%'}
                   </td>
                 </tr>

@@ -53,7 +53,10 @@ export async function initSchema(): Promise<void> {
       last_synced_at TEXT,
       install_date TEXT,
       ship_date TEXT,
-      timezone TEXT
+      timezone TEXT,
+      discrepancy_flow1_gal REAL DEFAULT 0,
+      discrepancy_flow2_gal REAL DEFAULT 0,
+      discrepancy_date TEXT
     );
 
     CREATE TABLE IF NOT EXISTS messages (
@@ -120,6 +123,9 @@ export async function initSchema(): Promise<void> {
 
   try {
     await db.execute(`CREATE INDEX IF NOT EXISTS idx_messages_orig_ts ON messages(original_timestamp)`).catch(() => {});
+    await db.execute(`ALTER TABLE sites ADD COLUMN discrepancy_flow1_gal REAL DEFAULT 0`).catch(() => {});
+    await db.execute(`ALTER TABLE sites ADD COLUMN discrepancy_flow2_gal REAL DEFAULT 0`).catch(() => {});
+    await db.execute(`ALTER TABLE sites ADD COLUMN discrepancy_date TEXT`).catch(() => {});
   } catch {}
 
   try {

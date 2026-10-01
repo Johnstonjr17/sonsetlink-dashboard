@@ -33,6 +33,9 @@ interface SiteDetail {
   timezone: string | null;
   most_recent_tx: string | null;
   last_synced_at: string | null;
+  discrepancy_flow1_gal: number | null;
+  discrepancy_flow2_gal: number | null;
+  discrepancy_date: string | null;
 }
 
 interface NotificationItem {
@@ -129,6 +132,13 @@ export default function SitePage({ params }: { params: Promise<{ siteId: string 
   const [unit, setUnit] = useState<Unit>('gal');
   const [windowDays, setWindowDays] = useState<'all' | '90' | '30' | '14' | '7'>('90');
 
+  // Discrepancy settings state
+  const [discFlow1, setDiscFlow1] = useState('');
+  const [discFlow2, setDiscFlow2] = useState('');
+  const [discDate, setDiscDate] = useState('');
+  const [discSaving, setDiscSaving] = useState(false);
+  const [discSaved, setDiscSaved] = useState(false);
+
   useEffect(() => {
     fetch(`/api/sites/${siteId}`)
       .then((r) => r.json())
@@ -138,9 +148,34 @@ export default function SitePage({ params }: { params: Promise<{ siteId: string 
         setMessages(d.recentMessages ?? []);
         setBatteryTrend(d.batteryTrend ?? []);
         setNotifications(d.notifications ?? []);
+        // Initialize discrepancy fields from site data
+        setDiscFlow1(String(d.site?.discrepancy_flow1_gal ?? ''));
+        setDiscFlow2(String(d.site?.discrepancy_flow2_gal ?? ''));
+        setDiscDate(d.site?.discrepancy_date ?? '');
       })
       .finally(() => setLoading(false));
   }, [siteId]);
+
+  async function saveDiscrepancy() {
+    setDiscSaving(true);
+    try {
+      const res = await fetch(`/api/sites/${siteId}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          discrepancy_flow1_gal: discFlow1 === '' ? 0 : Number(discFlow1),
+          discrepancy_flow2_gal: discFlow2 === '' ? 0 : Number(discFlow2),
+          discrepancy_date: discDate || null,
+        }),
+      });
+      if (res.ok) {
+        setDiscSaved(true);
+        setTimeout(() => setDiscSaved(false), 3000);
+      }
+    } finally {
+      setDiscSaving(false);
+    }
+  }
 
   async function toggleDismiss(notifId: string, currentDismissed: boolean) {
     const nextState = !currentDismissed;
@@ -485,6 +520,83 @@ export default function SitePage({ params }: { params: Promise<{ siteId: string 
           </div>
         </div>
       )}
+
+      {/* Discrepancy / Correction Settings */}
+      <div className="card" style={{ marginBottom: 24 }}>
+        <div className="card-header">
+          <span className="card-title">⚙️ Cumulative Volume Discrepancy Correction</span>
+          <span style={{ fontSize: '0.78rem', color: 'var(--text-secondary)', marginLeft: 8 }}>
+            Adjust reported totals on the Master Cumulative Volume page
+          </span>
+        </div>
+        <div style={{ padding: '20px', display: 'flex', gap: 16, flexWrap: 'wrap', alignItems: 'flex-end' }}>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+            <label style={{ fontSize: '0.75rem', fontWeight: 600, color: 'var(--text-secondary)', textTransform: 'uppercase' }}>
+              Flow 1 Correction (Gallons)
+            </label>
+            <input
+              type="number"
+              className="search-input"
+              style={{ width: 160, padding: '8px 10px' }}
+              placeholder="e.g. 500"
+              value={discFlow1}
+              onChange={(e) => setDiscFlow1(e.target.value)}
+            />
+            <span style={{ fontSize: '0.71rem', color: 'var(--text-secondary)' }}>
+              Added to reported Flow 1 total
+            </span>
+          </div>
+
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+            <label style={{ fontSize: '0.75rem', fontWeight: 600, color: 'var(--text-secondary)', textTransform: 'uppercase' }}>
+              Flow 2 Correction (Gallons)
+            </label>
+            <input
+              type="number"
+              className="search-input"
+              style={{ width: 160, padding: '8px 10px' }}
+              placeholder="e.g. 0"
+              value={discFlow2}
+              onChange={(e) => setDiscFlow2(e.target.value)}
+            />
+            <span style={{ fontSize: '0.71rem', color: 'var(--text-secondary)' }}>
+              Added to reported Flow 2 total
+            </span>
+          </div>
+
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+            <label style={{ fontSize: '0.75rem', fontWeight: 600, color: 'var(--text-secondary)', textTransform: 'uppercase' }}>
+              Discrepancy Date (Reference)
+            </label>
+            <input
+              type="date"
+              className="search-input"
+              style={{ width: 160, padding: '8px 10px' }}
+              value={discDate}
+              onChange={(e) => setDiscDate(e.target.value)}
+            />
+            <span style={{ fontSize: '0.71rem', color: 'var(--text-secondary)' }}>
+              For tracking only (informational)
+            </span>
+          </div>
+
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 6, justifyContent: 'flex-end' }}>
+            <button
+              className="btn btn-primary"
+              style={{ padding: '9px 20px', fontSize: '0.85rem', background: discSaved ? '#16a34a' : undefined }}
+              onClick={saveDiscrepancy}
+              disabled={discSaving}
+            >
+              {discSaving ? 'Saving…' : discSaved ? '✓ Saved!' : 'Save Corrections'}
+            </button>
+            {(Number(discFlow1) !== 0 || Number(discFlow2) !== 0) && (
+              <span style={{ fontSize: '0.72rem', color: '#0d9488', textAlign: 'center' }}>
+                Adjusted Total: +{(Number(discFlow1 || 0) + Number(discFlow2 || 0)).toLocaleString()} gal
+              </span>
+            )}
+          </div>
+        </div>
+      </div>
 
       {/* Recent Transmissions Table */}
       <div className="card">

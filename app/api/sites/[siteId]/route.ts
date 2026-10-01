@@ -187,3 +187,37 @@ export async function GET(
   }
 }
 
+export async function PATCH(
+  req: NextRequest,
+  { params }: { params: Promise<{ siteId: string }> }
+) {
+  try {
+    await initSchema();
+    const { siteId } = await params;
+    const db = getDb();
+    const body = await req.json();
+
+    const { discrepancy_flow1_gal, discrepancy_flow2_gal, discrepancy_date } = body;
+
+    await db.execute({
+      sql: `
+        UPDATE sites
+        SET discrepancy_flow1_gal = ?,
+            discrepancy_flow2_gal = ?,
+            discrepancy_date = ?
+        WHERE id = ?
+      `,
+      args: [
+        discrepancy_flow1_gal ?? 0,
+        discrepancy_flow2_gal ?? 0,
+        discrepancy_date ?? null,
+        siteId,
+      ],
+    });
+
+    const updated = await db.execute({ sql: `SELECT * FROM sites WHERE id = ?`, args: [siteId] });
+    return NextResponse.json({ success: true, site: updated.rows[0] });
+  } catch (err) {
+    return NextResponse.json({ error: String(err) }, { status: 500 });
+  }
+}
