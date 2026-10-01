@@ -391,19 +391,37 @@ export default function CumulativePage() {
               <div className="empty-state-desc">Try adjusting your date range or search query.</div>
             </div>
           ) : (
-            <table className="data-table">
+            <table className="data-table compact">
               <thead>
                 <tr>
-                  <th>Site ID</th>
-                  <th>Project Name</th>
-                  <th>Location</th>
-                  <th>Install Date</th>
-                  <th>First TX in Window</th>
-                  <th>Last TX in Window</th>
-                  <th style={{ textAlign: 'right' }}>Flow 1 Reported ({unit === 'gal' ? 'Gal' : 'L'})</th>
-                  <th style={{ textAlign: 'right' }}>Flow 2 Reported ({unit === 'gal' ? 'Gal' : 'L'})</th>
-                  <th style={{ textAlign: 'right', color: '#6366f1' }}>Flow 1 Adjusted ({unit === 'gal' ? 'Gal' : 'L'})</th>
-                  <th style={{ textAlign: 'right', color: '#f59e0b' }}>Flow 2 Adjusted ({unit === 'gal' ? 'Gal' : 'L'})</th>
+                  <th style={{ verticalAlign: 'bottom' }}>Site ID</th>
+                  <th style={{ verticalAlign: 'bottom' }}>Project Name</th>
+                  <th style={{ verticalAlign: 'bottom' }}>Location</th>
+                  <th style={{ verticalAlign: 'bottom' }}>Install Date</th>
+                  <th style={{ verticalAlign: 'bottom' }}>
+                    First TX<br />
+                    <span style={{ fontSize: '0.65rem', fontWeight: 500, color: 'var(--text-muted)', textTransform: 'none' }}>in window</span>
+                  </th>
+                  <th style={{ verticalAlign: 'bottom' }}>
+                    Last TX<br />
+                    <span style={{ fontSize: '0.65rem', fontWeight: 500, color: 'var(--text-muted)', textTransform: 'none' }}>in window</span>
+                  </th>
+                  <th style={{ textAlign: 'right', verticalAlign: 'bottom' }}>
+                    Flow 1<br />
+                    <span style={{ fontWeight: 500, textTransform: 'none' }}>Reported ({unit === 'gal' ? 'Gal' : 'L'})</span>
+                  </th>
+                  <th style={{ textAlign: 'right', verticalAlign: 'bottom' }}>
+                    Flow 2<br />
+                    <span style={{ fontWeight: 500, textTransform: 'none' }}>Reported ({unit === 'gal' ? 'Gal' : 'L'})</span>
+                  </th>
+                  <th style={{ textAlign: 'right', verticalAlign: 'bottom', color: '#6366f1' }}>
+                    Flow 1<br />
+                    <span style={{ fontWeight: 600, textTransform: 'none' }}>Adjusted ({unit === 'gal' ? 'Gal' : 'L'})</span>
+                  </th>
+                  <th style={{ textAlign: 'right', verticalAlign: 'bottom', color: '#f59e0b' }}>
+                    Flow 2<br />
+                    <span style={{ fontWeight: 600, textTransform: 'none' }}>Adjusted ({unit === 'gal' ? 'Gal' : 'L'})</span>
+                  </th>
                 </tr>
               </thead>
               <tbody>
