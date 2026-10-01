@@ -72,17 +72,37 @@ export default function CumulativePage() {
       .finally(() => setLoading(false));
   }, [startDate, endDate]);
 
+  const filteredSites = (data?.sites ?? []).filter((s) => {
+    const q = search.toLowerCase();
+    return (
+      s.name.toLowerCase().includes(q) ||
+      s.site_id.toLowerCase().includes(q) ||
+      s.location.toLowerCase().includes(q)
+    );
+  });
+
+  const filteredTotals = filteredSites.reduce(
+    (acc, s) => {
+      acc.flow1_gal += s.flow1_gal || 0;
+      acc.flow1_liters += s.flow1_liters || 0;
+      acc.flow2_gal += s.flow2_gal || 0;
+      acc.flow2_liters += s.flow2_liters || 0;
+      acc.total_gal += s.total_gal || 0;
+      acc.total_liters += s.total_liters || 0;
+      return acc;
+    },
+    { flow1_gal: 0, flow1_liters: 0, flow2_gal: 0, flow2_liters: 0, total_gal: 0, total_liters: 0 }
+  );
+
   function exportCsv() {
-    if (!data || !data.sites.length) return;
+    if (!data || !filteredSites.length) return;
 
     const unitLabel = unit === 'gal' ? 'Gallons' : 'Liters';
     const f1Key = unit === 'gal' ? 'flow1_gal' : 'flow1_liters';
     const f2Key = unit === 'gal' ? 'flow2_gal' : 'flow2_liters';
     const totalKey = unit === 'gal' ? 'total_gal' : 'total_liters';
 
-    const overallF1 = unit === 'gal' ? data.overallFlow1Gal : data.overallFlow1Liters;
-    const overallF2 = unit === 'gal' ? data.overallFlow2Gal : data.overallFlow2Liters;
-    const overallTotal = unit === 'gal' ? data.overallGal : data.overallLiters;
+    const systemTotal = unit === 'gal' ? data.overallGal : data.overallLiters;
 
     const headers = [
       'Site ID',
@@ -100,11 +120,11 @@ export default function CumulativePage() {
       '% of System Total Volume',
     ];
 
-    const rows = data.sites.map((s) => {
+    const rows = filteredSites.map((s) => {
       const f1 = s[f1Key];
       const f2 = s[f2Key];
       const tot = s[totalKey];
-      const pct = overallTotal > 0 ? ((tot / overallTotal) * 100).toFixed(1) + '%' : '0%';
+      const pct = systemTotal > 0 ? ((tot / systemTotal) * 100).toFixed(1) + '%' : '0%';
       return [
         s.site_id,
         s.name,
@@ -122,10 +142,16 @@ export default function CumulativePage() {
       ];
     });
 
+    const isFiltered = Boolean(search.trim());
+    const totalF1 = unit === 'gal' ? filteredTotals.flow1_gal : filteredTotals.flow1_liters;
+    const totalF2 = unit === 'gal' ? filteredTotals.flow2_gal : filteredTotals.flow2_liters;
+    const totalCombined = unit === 'gal' ? filteredTotals.total_gal : filteredTotals.total_liters;
+    const totalPct = systemTotal > 0 ? ((totalCombined / systemTotal) * 100).toFixed(1) + '%' : '100%';
+
     // Add totals row
     rows.push([
-      'TOTAL ALL SITES',
-      'All Monitored Projects',
+      isFiltered ? `TOTAL (${filteredSites.length} FILTERED SITES)` : 'TOTAL ALL SITES',
+      isFiltered ? `${filteredSites.length} Filtered Projects` : 'All Monitored Projects',
       'All Locations',
       'N/A',
       'N/A',
@@ -133,10 +159,10 @@ export default function CumulativePage() {
       data.endDate,
       'N/A',
       'N/A',
-      overallF1.toString(),
-      overallF2.toString(),
-      overallTotal.toString(),
-      '100%',
+      Math.round(totalF1).toString(),
+      Math.round(totalF2).toString(),
+      Math.round(totalCombined).toString(),
+      totalPct,
     ]);
 
     const csvContent = [headers, ...rows]
@@ -151,15 +177,6 @@ export default function CumulativePage() {
     link.click();
     URL.revokeObjectURL(url);
   }
-
-  const filteredSites = (data?.sites ?? []).filter((s) => {
-    const q = search.toLowerCase();
-    return (
-      s.name.toLowerCase().includes(q) ||
-      s.site_id.toLowerCase().includes(q) ||
-      s.location.toLowerCase().includes(q)
-    );
-  });
 
   const daySpan = Math.max(
     1,
@@ -393,21 +410,34 @@ export default function CumulativePage() {
                 {/* Summary Row */}
                 <tr style={{ background: 'var(--teal-50)', fontWeight: 700 }}>
                   <td colSpan={4} style={{ color: 'var(--teal-800)', fontSize: '0.88rem' }}>
-                    TOTAL — All {filteredSites.length} Projects
+                    {search.trim() ? (
+                      <>
+                        TOTAL — {filteredSites.length} Searched Project{filteredSites.length === 1 ? '' : 's'}
+                        <span style={{ fontSize: '0.78rem', fontWeight: 500, color: 'var(--teal-600)', marginLeft: 8 }}>
+                          (of {data?.totalSites ?? data?.sites.length} total)
+                        </span>
+                      </>
+                    ) : (
+                      `TOTAL — All ${filteredSites.length} Projects`
+                    )}
                   </td>
                   <td colSpan={2} style={{ fontSize: '0.78rem', color: 'var(--teal-700)' }}>
                     {startDate} to {endDate}
                   </td>
                   <td style={{ textAlign: 'right', color: '#6366f1' }}>
-                    {(unit === 'gal' ? data!.overallFlow1Gal : data!.overallFlow1Liters).toLocaleString()}
+                    {Math.round(unit === 'gal' ? filteredTotals.flow1_gal : filteredTotals.flow1_liters).toLocaleString()}
                   </td>
                   <td style={{ textAlign: 'right', color: '#f59e0b' }}>
-                    {(unit === 'gal' ? data!.overallFlow2Gal : data!.overallFlow2Liters).toLocaleString()}
+                    {Math.round(unit === 'gal' ? filteredTotals.flow2_gal : filteredTotals.flow2_liters).toLocaleString()}
                   </td>
                   <td style={{ textAlign: 'right', color: 'var(--teal-800)', fontSize: '0.95rem' }}>
-                    {(unit === 'gal' ? data!.overallGal : data!.overallLiters).toLocaleString()}
+                    {Math.round(unit === 'gal' ? filteredTotals.total_gal : filteredTotals.total_liters).toLocaleString()}
                   </td>
-                  <td style={{ textAlign: 'right', color: 'var(--teal-800)' }}>100%</td>
+                  <td style={{ textAlign: 'right', color: 'var(--teal-800)' }}>
+                    {data && (unit === 'gal' ? data.overallGal : data.overallLiters) > 0
+                      ? `${(((unit === 'gal' ? filteredTotals.total_gal : filteredTotals.total_liters) / (unit === 'gal' ? data.overallGal : data.overallLiters)) * 100).toFixed(1)}%`
+                      : '100%'}
+                  </td>
                 </tr>
               </tbody>
             </table>
