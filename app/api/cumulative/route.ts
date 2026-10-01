@@ -24,6 +24,8 @@ export async function GET(req: NextRequest) {
           s.ship_date,
           COALESCE(s.discrepancy_flow1_gal, 0) AS discrepancy_flow1_gal,
           COALESCE(s.discrepancy_flow2_gal, 0) AS discrepancy_flow2_gal,
+          COALESCE(s.discrepancy_flow1_date, s.discrepancy_date) AS discrepancy_flow1_date,
+          COALESCE(s.discrepancy_flow2_date, s.discrepancy_date) AS discrepancy_flow2_date,
           s.discrepancy_date,
           SUM(COALESCE(m.flow_volume, 0)) AS flow1_gal,
           SUM(COALESCE(m.flow2_volume, 0)) AS flow2_gal,
@@ -38,7 +40,7 @@ export async function GET(req: NextRequest) {
           AND (s.install_date IS NULL OR substr(m.timestamp, 1, 10) >= s.install_date)
         WHERE s.most_recent_tx >= '2025-01-01'
         GROUP BY s.id, s.name, s.location, s.format_name, s.install_date, s.ship_date,
-                 s.discrepancy_flow1_gal, s.discrepancy_flow2_gal, s.discrepancy_date
+                 s.discrepancy_flow1_gal, s.discrepancy_flow2_gal, s.discrepancy_flow1_date, s.discrepancy_flow2_date, s.discrepancy_date
         ORDER BY s.name ASC
       `,
       args: [startDate, endDate],
@@ -65,6 +67,8 @@ export async function GET(req: NextRequest) {
         ship_date: r.ship_date ? String(r.ship_date) : 'N/A',
         discrepancy_flow1_gal: discFlow1Gal,
         discrepancy_flow2_gal: discFlow2Gal,
+        discrepancy_flow1_date: r.discrepancy_flow1_date ? String(r.discrepancy_flow1_date) : null,
+        discrepancy_flow2_date: r.discrepancy_flow2_date ? String(r.discrepancy_flow2_date) : null,
         discrepancy_date: r.discrepancy_date ? String(r.discrepancy_date) : null,
         // Raw reported values
         flow1_gal: flow1Gal,

@@ -34,7 +34,9 @@ interface SiteDetail {
   most_recent_tx: string | null;
   last_synced_at: string | null;
   discrepancy_flow1_gal: number | null;
+  discrepancy_flow1_date: string | null;
   discrepancy_flow2_gal: number | null;
+  discrepancy_flow2_date: string | null;
   discrepancy_date: string | null;
 }
 
@@ -134,8 +136,9 @@ export default function SitePage({ params }: { params: Promise<{ siteId: string 
 
   // Discrepancy settings state
   const [discFlow1, setDiscFlow1] = useState('');
+  const [discFlow1Date, setDiscFlow1Date] = useState('');
   const [discFlow2, setDiscFlow2] = useState('');
-  const [discDate, setDiscDate] = useState('');
+  const [discFlow2Date, setDiscFlow2Date] = useState('');
   const [discSaving, setDiscSaving] = useState(false);
   const [discSaved, setDiscSaved] = useState(false);
 
@@ -150,8 +153,9 @@ export default function SitePage({ params }: { params: Promise<{ siteId: string 
         setNotifications(d.notifications ?? []);
         // Initialize discrepancy fields from site data
         setDiscFlow1(String(d.site?.discrepancy_flow1_gal ?? ''));
+        setDiscFlow1Date(d.site?.discrepancy_flow1_date ?? d.site?.discrepancy_date ?? '');
         setDiscFlow2(String(d.site?.discrepancy_flow2_gal ?? ''));
-        setDiscDate(d.site?.discrepancy_date ?? '');
+        setDiscFlow2Date(d.site?.discrepancy_flow2_date ?? d.site?.discrepancy_date ?? '');
       })
       .finally(() => setLoading(false));
   }, [siteId]);
@@ -164,8 +168,9 @@ export default function SitePage({ params }: { params: Promise<{ siteId: string 
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           discrepancy_flow1_gal: discFlow1 === '' ? 0 : Number(discFlow1),
+          discrepancy_flow1_date: discFlow1Date || null,
           discrepancy_flow2_gal: discFlow2 === '' ? 0 : Number(discFlow2),
-          discrepancy_date: discDate || null,
+          discrepancy_flow2_date: discFlow2Date || null,
         }),
       });
       if (res.ok) {
@@ -526,72 +531,113 @@ export default function SitePage({ params }: { params: Promise<{ siteId: string 
         <div className="card-header">
           <span className="card-title">⚙️ Cumulative Volume Discrepancy Correction</span>
           <span style={{ fontSize: '0.78rem', color: 'var(--text-secondary)', marginLeft: 8 }}>
-            Adjust reported totals on the Master Cumulative Volume page
+            Adjust reported totals on the Master Cumulative Volume page per flow meter
           </span>
         </div>
-        <div style={{ padding: '20px', display: 'flex', gap: 16, flexWrap: 'wrap', alignItems: 'flex-end' }}>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-            <label style={{ fontSize: '0.75rem', fontWeight: 600, color: 'var(--text-secondary)', textTransform: 'uppercase' }}>
-              Flow 1 Correction (Gallons)
-            </label>
-            <input
-              type="number"
-              className="search-input"
-              style={{ width: 160, padding: '8px 10px' }}
-              placeholder="e.g. 500"
-              value={discFlow1}
-              onChange={(e) => setDiscFlow1(e.target.value)}
-            />
-            <span style={{ fontSize: '0.71rem', color: 'var(--text-secondary)' }}>
-              Added to reported Flow 1 total
-            </span>
+        <div style={{ padding: '20px', display: 'flex', flexDirection: 'column', gap: 20 }}>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: 20 }}>
+            {/* Flow 1 Settings Box */}
+            <div style={{ padding: '16px', borderRadius: 8, background: '#f8fafc', border: '1px solid #e2e8f0', borderLeft: '4px solid #6366f1' }}>
+              <div style={{ fontWeight: 600, fontSize: '0.88rem', color: '#4338ca', marginBottom: 12 }}>
+                Flow 1 Discrepancy
+              </div>
+              <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap' }}>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 4, flex: 1, minWidth: 130 }}>
+                  <label style={{ fontSize: '0.75rem', fontWeight: 600, color: 'var(--text-secondary)', textTransform: 'uppercase' }}>
+                    Correction (Gallons)
+                  </label>
+                  <input
+                    type="number"
+                    className="search-input"
+                    style={{ padding: '8px 10px' }}
+                    placeholder="e.g. 500"
+                    value={discFlow1}
+                    onChange={(e) => setDiscFlow1(e.target.value)}
+                  />
+                  <span style={{ fontSize: '0.71rem', color: 'var(--text-secondary)' }}>
+                    Added to Flow 1
+                  </span>
+                </div>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 4, flex: 1, minWidth: 130 }}>
+                  <label style={{ fontSize: '0.75rem', fontWeight: 600, color: 'var(--text-secondary)', textTransform: 'uppercase' }}>
+                    Flow 1 Date
+                  </label>
+                  <input
+                    type="date"
+                    className="search-input"
+                    style={{ padding: '8px 10px' }}
+                    value={discFlow1Date}
+                    onChange={(e) => setDiscFlow1Date(e.target.value)}
+                  />
+                  <span style={{ fontSize: '0.71rem', color: 'var(--text-secondary)' }}>
+                    Date of discrepancy
+                  </span>
+                </div>
+              </div>
+            </div>
+
+            {/* Flow 2 Settings Box */}
+            <div style={{ padding: '16px', borderRadius: 8, background: '#fffbeb', border: '1px solid #fef3c7', borderLeft: '4px solid #f59e0b' }}>
+              <div style={{ fontWeight: 600, fontSize: '0.88rem', color: '#b45309', marginBottom: 12 }}>
+                Flow 2 Discrepancy
+              </div>
+              <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap' }}>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 4, flex: 1, minWidth: 130 }}>
+                  <label style={{ fontSize: '0.75rem', fontWeight: 600, color: 'var(--text-secondary)', textTransform: 'uppercase' }}>
+                    Correction (Gallons)
+                  </label>
+                  <input
+                    type="number"
+                    className="search-input"
+                    style={{ padding: '8px 10px' }}
+                    placeholder="e.g. 0"
+                    value={discFlow2}
+                    onChange={(e) => setDiscFlow2(e.target.value)}
+                  />
+                  <span style={{ fontSize: '0.71rem', color: 'var(--text-secondary)' }}>
+                    Added to Flow 2
+                  </span>
+                </div>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 4, flex: 1, minWidth: 130 }}>
+                  <label style={{ fontSize: '0.75rem', fontWeight: 600, color: 'var(--text-secondary)', textTransform: 'uppercase' }}>
+                    Flow 2 Date
+                  </label>
+                  <input
+                    type="date"
+                    className="search-input"
+                    style={{ padding: '8px 10px' }}
+                    value={discFlow2Date}
+                    onChange={(e) => setDiscFlow2Date(e.target.value)}
+                  />
+                  <span style={{ fontSize: '0.71rem', color: 'var(--text-secondary)' }}>
+                    Date of discrepancy
+                  </span>
+                </div>
+              </div>
+            </div>
           </div>
 
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-            <label style={{ fontSize: '0.75rem', fontWeight: 600, color: 'var(--text-secondary)', textTransform: 'uppercase' }}>
-              Flow 2 Correction (Gallons)
-            </label>
-            <input
-              type="number"
-              className="search-input"
-              style={{ width: 160, padding: '8px 10px' }}
-              placeholder="e.g. 0"
-              value={discFlow2}
-              onChange={(e) => setDiscFlow2(e.target.value)}
-            />
-            <span style={{ fontSize: '0.71rem', color: 'var(--text-secondary)' }}>
-              Added to reported Flow 2 total
-            </span>
-          </div>
-
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-            <label style={{ fontSize: '0.75rem', fontWeight: 600, color: 'var(--text-secondary)', textTransform: 'uppercase' }}>
-              Discrepancy Date (Reference)
-            </label>
-            <input
-              type="date"
-              className="search-input"
-              style={{ width: 160, padding: '8px 10px' }}
-              value={discDate}
-              onChange={(e) => setDiscDate(e.target.value)}
-            />
-            <span style={{ fontSize: '0.71rem', color: 'var(--text-secondary)' }}>
-              For tracking only (informational)
-            </span>
-          </div>
-
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 6, justifyContent: 'flex-end' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 16, flexWrap: 'wrap' }}>
             <button
               className="btn btn-primary"
-              style={{ padding: '9px 20px', fontSize: '0.85rem', background: discSaved ? '#16a34a' : undefined }}
+              style={{ padding: '9px 24px', fontSize: '0.85rem', background: discSaved ? '#16a34a' : undefined }}
               onClick={saveDiscrepancy}
               disabled={discSaving}
             >
               {discSaving ? 'Saving…' : discSaved ? '✓ Saved!' : 'Save Corrections'}
             </button>
             {(Number(discFlow1) !== 0 || Number(discFlow2) !== 0) && (
-              <span style={{ fontSize: '0.72rem', color: '#0d9488', textAlign: 'center' }}>
-                Adjusted Total: +{(Number(discFlow1 || 0) + Number(discFlow2 || 0)).toLocaleString()} gal
+              <span style={{ fontSize: '0.75rem', color: 'var(--text-secondary)' }}>
+                {Number(discFlow1) !== 0 && (
+                  <span style={{ color: '#4338ca', marginRight: 12 }}>
+                    Flow 1: {Number(discFlow1) > 0 ? `+${Number(discFlow1).toLocaleString()}` : Number(discFlow1).toLocaleString()} gal{discFlow1Date ? ` (${discFlow1Date})` : ''}
+                  </span>
+                )}
+                {Number(discFlow2) !== 0 && (
+                  <span style={{ color: '#b45309' }}>
+                    Flow 2: {Number(discFlow2) > 0 ? `+${Number(discFlow2).toLocaleString()}` : Number(discFlow2).toLocaleString()} gal{discFlow2Date ? ` (${discFlow2Date})` : ''}
+                  </span>
+                )}
               </span>
             )}
           </div>

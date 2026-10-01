@@ -55,7 +55,9 @@ export async function initSchema(): Promise<void> {
       ship_date TEXT,
       timezone TEXT,
       discrepancy_flow1_gal REAL DEFAULT 0,
+      discrepancy_flow1_date TEXT,
       discrepancy_flow2_gal REAL DEFAULT 0,
+      discrepancy_flow2_date TEXT,
       discrepancy_date TEXT
     );
 
@@ -126,6 +128,8 @@ export async function initSchema(): Promise<void> {
     await db.execute(`ALTER TABLE sites ADD COLUMN discrepancy_flow1_gal REAL DEFAULT 0`).catch(() => {});
     await db.execute(`ALTER TABLE sites ADD COLUMN discrepancy_flow2_gal REAL DEFAULT 0`).catch(() => {});
     await db.execute(`ALTER TABLE sites ADD COLUMN discrepancy_date TEXT`).catch(() => {});
+    await db.execute(`ALTER TABLE sites ADD COLUMN discrepancy_flow1_date TEXT`).catch(() => {});
+    await db.execute(`ALTER TABLE sites ADD COLUMN discrepancy_flow2_date TEXT`).catch(() => {});
   } catch {}
 
   try {

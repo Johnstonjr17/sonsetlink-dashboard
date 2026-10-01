@@ -9,7 +9,9 @@ interface CumulativeSiteRecord {
   install_date: string;
   ship_date: string;
   discrepancy_flow1_gal: number;
+  discrepancy_flow1_date: string | null;
   discrepancy_flow2_gal: number;
+  discrepancy_flow2_date: string | null;
   discrepancy_date: string | null;
   flow1_gal: number;
   flow1_liters: number;
@@ -140,8 +142,9 @@ export default function CumulativePage() {
       `Flow 1 Reported (${unitLabel})`,
       `Flow 2 Reported (${unitLabel})`,
       `Flow 1 Correction (${unitLabel})`,
+      'Flow 1 Discrepancy Date',
       `Flow 2 Correction (${unitLabel})`,
-      'Discrepancy Date',
+      'Flow 2 Discrepancy Date',
       `Flow 1 Adjusted (${unitLabel})`,
       `Flow 2 Adjusted (${unitLabel})`,
     ];
@@ -164,8 +167,9 @@ export default function CumulativePage() {
         f1.toString(),
         f2.toString(),
         s.discrepancy_flow1_gal.toString(),
+        s.discrepancy_flow1_date ?? '',
         s.discrepancy_flow2_gal.toString(),
-        s.discrepancy_date ?? '',
+        s.discrepancy_flow2_date ?? '',
         adjF1.toString(),
         adjF2.toString(),
       ];
@@ -190,6 +194,7 @@ export default function CumulativePage() {
       'N/A',
       Math.round(totalF1).toString(),
       Math.round(totalF2).toString(),
+      '',
       '',
       '',
       '',
@@ -406,8 +411,8 @@ export default function CumulativePage() {
                   const f2 = unit === 'gal' ? s.flow2_gal : s.flow2_liters;
                   const adjF1 = unit === 'gal' ? s.adjusted_flow1_gal : s.adjusted_flow1_liters;
                   const adjF2 = unit === 'gal' ? s.adjusted_flow2_gal : s.adjusted_flow2_liters;
-                  const hasDisc = s.discrepancy_flow1_gal !== 0 || s.discrepancy_flow2_gal !== 0;
-                  const discTip = `Correction: Flow 1 +${s.discrepancy_flow1_gal.toLocaleString()}, Flow 2 +${s.discrepancy_flow2_gal.toLocaleString()}${s.discrepancy_date ? ` (as of ${s.discrepancy_date})` : ''}`;
+                  const discTip1 = `Flow 1 Correction: +${s.discrepancy_flow1_gal.toLocaleString()} gal${s.discrepancy_flow1_date ? ` (as of ${s.discrepancy_flow1_date})` : ''}`;
+                  const discTip2 = `Flow 2 Correction: +${s.discrepancy_flow2_gal.toLocaleString()} gal${s.discrepancy_flow2_date ? ` (as of ${s.discrepancy_flow2_date})` : ''}`;
 
                   return (
                     <tr key={s.site_id}>
@@ -431,14 +436,14 @@ export default function CumulativePage() {
                       </td>
                       <td style={{ textAlign: 'right', fontWeight: 700, color: '#6366f1', fontSize: '0.9rem' }}>
                         {adjF1.toLocaleString()}
-                        {hasDisc && s.discrepancy_flow1_gal !== 0 && (
-                          <span title={discTip} style={{ marginLeft: 5, fontSize: '0.68rem', cursor: 'help', opacity: 0.7 }}>✱</span>
+                        {s.discrepancy_flow1_gal !== 0 && (
+                          <span title={discTip1} style={{ marginLeft: 5, fontSize: '0.68rem', cursor: 'help', opacity: 0.7 }}>✱</span>
                         )}
                       </td>
                       <td style={{ textAlign: 'right', fontWeight: 700, color: '#f59e0b', fontSize: '0.9rem' }}>
                         {adjF2.toLocaleString()}
-                        {hasDisc && s.discrepancy_flow2_gal !== 0 && (
-                          <span title={discTip} style={{ marginLeft: 5, fontSize: '0.68rem', cursor: 'help', opacity: 0.7 }}>✱</span>
+                        {s.discrepancy_flow2_gal !== 0 && (
+                          <span title={discTip2} style={{ marginLeft: 5, fontSize: '0.68rem', cursor: 'help', opacity: 0.7 }}>✱</span>
                         )}
                       </td>
                     </tr>

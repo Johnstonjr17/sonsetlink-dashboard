@@ -196,21 +196,33 @@ export async function PATCH(
     const { siteId } = await params;
     const db = getDb();
     const body = await req.json();
+    const {
+      discrepancy_flow1_gal,
+      discrepancy_flow2_gal,
+      discrepancy_flow1_date,
+      discrepancy_flow2_date,
+      discrepancy_date,
+    } = body;
 
-    const { discrepancy_flow1_gal, discrepancy_flow2_gal, discrepancy_date } = body;
+    const f1Date = discrepancy_flow1_date !== undefined ? (discrepancy_flow1_date || null) : (discrepancy_date || null);
+    const f2Date = discrepancy_flow2_date !== undefined ? (discrepancy_flow2_date || null) : (discrepancy_date || null);
 
     await db.execute({
       sql: `
         UPDATE sites
         SET discrepancy_flow1_gal = ?,
             discrepancy_flow2_gal = ?,
+            discrepancy_flow1_date = ?,
+            discrepancy_flow2_date = ?,
             discrepancy_date = ?
         WHERE id = ?
       `,
       args: [
         discrepancy_flow1_gal ?? 0,
         discrepancy_flow2_gal ?? 0,
-        discrepancy_date ?? null,
+        f1Date,
+        f2Date,
+        f1Date || f2Date || null,
         siteId,
       ],
     });
