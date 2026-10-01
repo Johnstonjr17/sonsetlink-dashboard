@@ -104,11 +104,15 @@ export default function CumulativePage() {
       acc.flow2_liters += s.flow2_liters || 0;
       acc.total_gal += s.total_gal || 0;
       acc.total_liters += s.total_liters || 0;
+      acc.adjusted_flow1_gal += s.adjusted_flow1_gal || 0;
+      acc.adjusted_flow1_liters += s.adjusted_flow1_liters || 0;
+      acc.adjusted_flow2_gal += s.adjusted_flow2_gal || 0;
+      acc.adjusted_flow2_liters += s.adjusted_flow2_liters || 0;
       acc.adjusted_total_gal += s.adjusted_total_gal || 0;
       acc.adjusted_total_liters += s.adjusted_total_liters || 0;
       return acc;
     },
-    { flow1_gal: 0, flow1_liters: 0, flow2_gal: 0, flow2_liters: 0, total_gal: 0, total_liters: 0, adjusted_total_gal: 0, adjusted_total_liters: 0 }
+    { flow1_gal: 0, flow1_liters: 0, flow2_gal: 0, flow2_liters: 0, total_gal: 0, total_liters: 0, adjusted_flow1_gal: 0, adjusted_flow1_liters: 0, adjusted_flow2_gal: 0, adjusted_flow2_liters: 0, adjusted_total_gal: 0, adjusted_total_liters: 0 }
   );
 
   function exportCsv() {
@@ -117,9 +121,11 @@ export default function CumulativePage() {
     const unitLabel = unit === 'gal' ? 'Gallons' : 'Liters';
     const f1Key = unit === 'gal' ? 'flow1_gal' : 'flow1_liters';
     const f2Key = unit === 'gal' ? 'flow2_gal' : 'flow2_liters';
-    const adjTotalKey = unit === 'gal' ? 'adjusted_total_gal' : 'adjusted_total_liters';
+    const adjF1Key = unit === 'gal' ? 'adjusted_flow1_gal' : 'adjusted_flow1_liters';
+    const adjF2Key = unit === 'gal' ? 'adjusted_flow2_gal' : 'adjusted_flow2_liters';
 
-    const systemTotal = unit === 'gal' ? data.overallAdjustedGal : data.overallAdjustedLiters;
+    const systemAdjF1 = unit === 'gal' ? data.overallAdjustedFlow1Gal : data.overallAdjustedFlow1Liters;
+    const systemAdjF2 = unit === 'gal' ? data.overallAdjustedFlow2Gal : data.overallAdjustedFlow2Liters;
 
     const headers = [
       'Site ID',
@@ -131,20 +137,20 @@ export default function CumulativePage() {
       'Filter End Date',
       'First Telemetry Date in Window',
       'Last Telemetry Date in Window',
-      `Flow 1 Volume (${unitLabel})`,
-      `Flow 2 Volume (${unitLabel})`,
+      `Flow 1 Reported (${unitLabel})`,
+      `Flow 2 Reported (${unitLabel})`,
       `Flow 1 Correction (${unitLabel})`,
       `Flow 2 Correction (${unitLabel})`,
       'Discrepancy Date',
-      `Adjusted Total Volume (${unitLabel})`,
-      '% of System Adjusted Total',
+      `Flow 1 Adjusted (${unitLabel})`,
+      `Flow 2 Adjusted (${unitLabel})`,
     ];
 
     const rows = filteredSites.map((s) => {
       const f1 = s[f1Key];
       const f2 = s[f2Key];
-      const adjTot = s[adjTotalKey];
-      const pct = systemTotal > 0 ? ((adjTot / systemTotal) * 100).toFixed(1) + '%' : '0%';
+      const adjF1 = s[adjF1Key];
+      const adjF2 = s[adjF2Key];
       return [
         s.site_id,
         s.name,
@@ -160,16 +166,16 @@ export default function CumulativePage() {
         s.discrepancy_flow1_gal.toString(),
         s.discrepancy_flow2_gal.toString(),
         s.discrepancy_date ?? '',
-        adjTot.toString(),
-        pct,
+        adjF1.toString(),
+        adjF2.toString(),
       ];
     });
 
     const isFiltered = Boolean(search.trim());
     const totalF1 = unit === 'gal' ? filteredTotals.flow1_gal : filteredTotals.flow1_liters;
     const totalF2 = unit === 'gal' ? filteredTotals.flow2_gal : filteredTotals.flow2_liters;
-    const totalAdj = unit === 'gal' ? filteredTotals.adjusted_total_gal : filteredTotals.adjusted_total_liters;
-    const totalPct = systemTotal > 0 ? ((totalAdj / systemTotal) * 100).toFixed(1) + '%' : '100%';
+    const totalAdjF1 = unit === 'gal' ? filteredTotals.adjusted_flow1_gal : filteredTotals.adjusted_flow1_liters;
+    const totalAdjF2 = unit === 'gal' ? filteredTotals.adjusted_flow2_gal : filteredTotals.adjusted_flow2_liters;
 
     // Add totals row
     rows.push([
@@ -187,8 +193,8 @@ export default function CumulativePage() {
       '',
       '',
       '',
-      Math.round(totalAdj).toString(),
-      totalPct,
+      Math.round(totalAdjF1).toString(),
+      Math.round(totalAdjF2).toString(),
     ]);
 
     const csvContent = [headers, ...rows]
@@ -388,21 +394,20 @@ export default function CumulativePage() {
                   <th>Install Date</th>
                   <th>First TX in Window</th>
                   <th>Last TX in Window</th>
-                  <th style={{ textAlign: 'right' }}>Flow 1 ({unit === 'gal' ? 'Gal' : 'L'})</th>
-                  <th style={{ textAlign: 'right' }}>Flow 2 ({unit === 'gal' ? 'Gal' : 'L'})</th>
-                  <th style={{ textAlign: 'right', color: '#0d9488' }}>Adjusted Total ({unit === 'gal' ? 'Gal' : 'L'})</th>
-                  <th style={{ textAlign: 'right' }}>% of System Total</th>
+                  <th style={{ textAlign: 'right' }}>Flow 1 Reported ({unit === 'gal' ? 'Gal' : 'L'})</th>
+                  <th style={{ textAlign: 'right' }}>Flow 2 Reported ({unit === 'gal' ? 'Gal' : 'L'})</th>
+                  <th style={{ textAlign: 'right', color: '#6366f1' }}>Flow 1 Adjusted ({unit === 'gal' ? 'Gal' : 'L'})</th>
+                  <th style={{ textAlign: 'right', color: '#f59e0b' }}>Flow 2 Adjusted ({unit === 'gal' ? 'Gal' : 'L'})</th>
                 </tr>
               </thead>
               <tbody>
                 {filteredSites.map((s) => {
                   const f1 = unit === 'gal' ? s.flow1_gal : s.flow1_liters;
                   const f2 = unit === 'gal' ? s.flow2_gal : s.flow2_liters;
-                  const adjTot = unit === 'gal' ? s.adjusted_total_gal : s.adjusted_total_liters;
+                  const adjF1 = unit === 'gal' ? s.adjusted_flow1_gal : s.adjusted_flow1_liters;
+                  const adjF2 = unit === 'gal' ? s.adjusted_flow2_gal : s.adjusted_flow2_liters;
                   const hasDisc = s.discrepancy_flow1_gal !== 0 || s.discrepancy_flow2_gal !== 0;
-
-                  const overallAdjTotal = unit === 'gal' ? data!.overallAdjustedGal : data!.overallAdjustedLiters;
-                  const pct = overallAdjTotal > 0 ? ((adjTot / overallAdjTotal) * 100).toFixed(1) : '0';
+                  const discTip = `Correction: Flow 1 +${s.discrepancy_flow1_gal.toLocaleString()}, Flow 2 +${s.discrepancy_flow2_gal.toLocaleString()}${s.discrepancy_date ? ` (as of ${s.discrepancy_date})` : ''}`;
 
                   return (
                     <tr key={s.site_id}>
@@ -418,25 +423,23 @@ export default function CumulativePage() {
                       </td>
                       <td style={{ fontSize: '0.78rem', color: 'var(--text-secondary)' }}>{s.first_tx}</td>
                       <td style={{ fontSize: '0.78rem', color: 'var(--text-secondary)' }}>{s.last_tx}</td>
-                      <td style={{ textAlign: 'right', fontWeight: 600, color: '#6366f1' }}>
+                      <td style={{ textAlign: 'right', color: 'var(--text-secondary)' }}>
                         {f1.toLocaleString()}
                       </td>
-                      <td style={{ textAlign: 'right', fontWeight: 600, color: '#f59e0b' }}>
+                      <td style={{ textAlign: 'right', color: 'var(--text-secondary)' }}>
                         {f2.toLocaleString()}
                       </td>
-                      <td style={{ textAlign: 'right', fontWeight: 700, color: '#0d9488', fontSize: '0.9rem' }}>
-                        {adjTot.toLocaleString()}
-                        {hasDisc && (
-                          <span
-                            title={`Correction: Flow 1 +${s.discrepancy_flow1_gal.toLocaleString()}, Flow 2 +${s.discrepancy_flow2_gal.toLocaleString()}${s.discrepancy_date ? ` (as of ${s.discrepancy_date})` : ''}`}
-                            style={{ marginLeft: 6, fontSize: '0.68rem', color: '#0d9488', cursor: 'help', opacity: 0.8 }}
-                          >
-                            ✱
-                          </span>
+                      <td style={{ textAlign: 'right', fontWeight: 700, color: '#6366f1', fontSize: '0.9rem' }}>
+                        {adjF1.toLocaleString()}
+                        {hasDisc && s.discrepancy_flow1_gal !== 0 && (
+                          <span title={discTip} style={{ marginLeft: 5, fontSize: '0.68rem', cursor: 'help', opacity: 0.7 }}>✱</span>
                         )}
                       </td>
-                      <td style={{ textAlign: 'right', fontWeight: 600 }}>
-                        <span className="badge badge-default" style={{ fontSize: '0.78rem' }}>{pct}%</span>
+                      <td style={{ textAlign: 'right', fontWeight: 700, color: '#f59e0b', fontSize: '0.9rem' }}>
+                        {adjF2.toLocaleString()}
+                        {hasDisc && s.discrepancy_flow2_gal !== 0 && (
+                          <span title={discTip} style={{ marginLeft: 5, fontSize: '0.68rem', cursor: 'help', opacity: 0.7 }}>✱</span>
+                        )}
                       </td>
                     </tr>
                   );
@@ -459,19 +462,17 @@ export default function CumulativePage() {
                   <td colSpan={2} style={{ fontSize: '0.78rem', color: 'var(--teal-700)' }}>
                     {startDate} to {endDate}
                   </td>
-                  <td style={{ textAlign: 'right', color: '#6366f1' }}>
+                  <td style={{ textAlign: 'right', color: 'var(--text-secondary)' }}>
                     {Math.round(unit === 'gal' ? filteredTotals.flow1_gal : filteredTotals.flow1_liters).toLocaleString()}
                   </td>
-                  <td style={{ textAlign: 'right', color: '#f59e0b' }}>
+                  <td style={{ textAlign: 'right', color: 'var(--text-secondary)' }}>
                     {Math.round(unit === 'gal' ? filteredTotals.flow2_gal : filteredTotals.flow2_liters).toLocaleString()}
                   </td>
-                  <td style={{ textAlign: 'right', color: '#0d9488', fontSize: '0.95rem' }}>
-                    {Math.round(unit === 'gal' ? filteredTotals.adjusted_total_gal : filteredTotals.adjusted_total_liters).toLocaleString()}
+                  <td style={{ textAlign: 'right', color: '#6366f1', fontSize: '0.95rem' }}>
+                    {Math.round(unit === 'gal' ? filteredTotals.adjusted_flow1_gal : filteredTotals.adjusted_flow1_liters).toLocaleString()}
                   </td>
-                  <td style={{ textAlign: 'right', color: 'var(--teal-800)' }}>
-                    {data && (unit === 'gal' ? data.overallAdjustedGal : data.overallAdjustedLiters) > 0
-                      ? `${(((unit === 'gal' ? filteredTotals.adjusted_total_gal : filteredTotals.adjusted_total_liters) / (unit === 'gal' ? data.overallAdjustedGal : data.overallAdjustedLiters)) * 100).toFixed(1)}%`
-                      : '100%'}
+                  <td style={{ textAlign: 'right', color: '#f59e0b', fontSize: '0.95rem' }}>
+                    {Math.round(unit === 'gal' ? filteredTotals.adjusted_flow2_gal : filteredTotals.adjusted_flow2_liters).toLocaleString()}
                   </td>
                 </tr>
               </tbody>
